@@ -5,21 +5,20 @@ This repo is a spike on how to use the GitHub API to
  - Locating the package.json file for a repository
  - Downloading and Parsing the contents of the package.json file
  
-Next steps are to:
- - Find the repositories of the dependencies of the repositories
- - Repeating the process to create a dependency graph
+Next steps:
+ - For each dependency, find it's repository name and owner
+ - Retrieve data from dependency's repositories as well, in order to create a dependency graph
 
 
 ## Usage
- - clone the repo and cd into it
+ - clone the repo and `cd` into it
  - [create a personal access token](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token) on GitHub. If you are lazy and don't wanna do this you can skip this and the next step, but you will probably be ratelimited after a few requests.
- - create a a file called `access_token.txt`, paste your access token there and save. This file is .gitignored.
- - create a pesonal access token on GitHub and paste it into the `auth` property at the start of the index.ts file 
- - `npm install` to install the necesary dependencies
- - `tsc -w` to let typescript compile the code and whatch for changes
- - in a new tab `node ./build/index.js` to run the code
+ - create a file called `access_token.txt`, paste your access token there and hit save. This file is .gitignored. 
+ - run `npm install` to install the necesary dependencies
+ - run `tsc -w` to let typescript compile the code and whatch for changes. This will create the build folder
+ - run `node ./build/index.js` in a new terminal tab to execute the code
 
-If you want to play around, simply edit the code (tsc will compile it automatically), finally run `node ./build/index.js` again.
+If you want to play around, simply edit the code (tsc will compile it automatically as long as `tsc -w` is running), finally run `node ./build/index.js` again.
 
 
 Sample output:
