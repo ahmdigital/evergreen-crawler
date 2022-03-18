@@ -21,7 +21,7 @@ Next steps:
 If you want to play around, simply edit the code (tsc will compile it automatically as long as `tsc -w` is running), finally run `node ./build/index.js` again.
 
 
-Sample output:
+## Sample output:
 ```
 GitHub information:
 Name: octokit.js
