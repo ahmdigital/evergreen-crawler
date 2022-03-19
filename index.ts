@@ -112,7 +112,7 @@ async function main() {
 
 		//filter for package.json files
 		const packageJsons = tree.data.tree
-			.filter(item => item.path === "package.json")
+			.filter(item => item.path.endsWith("package.json"))
 
 		if (packageJsons.length === 0) {
 			console.log("No package.json found");
