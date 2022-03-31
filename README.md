@@ -4,10 +4,12 @@ This repo is a spike on how to use the GitHub API to
  - List repositories under an organization
  - Locating the package.json file for a repository
  - Downloading and Parsing the contents of the package.json file
+ - Finding the current version of the dependencies listend in the package.json file using npm API
  
 Next steps:
- - For each dependency, find it's repository name and owner
+ - Send an alert to slack once a dependency is two majors behind
  - Retrieve data from dependency's repositories as well, in order to create a dependency graph
+ - Store the dependency graph into a database
 
 
 ## Usage
@@ -23,90 +25,116 @@ If you want to play around, simply edit the code (tsc will compile it automatica
 
 ## Sample output:
 ```
-GitHub information:
-Name: octokit.js
-Description: The all-batteries-included GitHub SDK for Browsers, Node.js, and Deno.
-Language: TypeScript
-Last Updated: 2022-03-18T08:43:55Z
-
-package.json information:
-Name: octokit
-Version: 0.0.0-development
-Description: The all-batteries-included GitHub SDK for Browsers, Node.js, and Deno
-Keywords: [ 'github', 'api', 'sdk', 'octokit' ]
-dependencies: {
-  '@octokit/app': '^12.0.4',
-  '@octokit/core': '^3.5.1',
-  '@octokit/oauth-app': '^3.5.1',
-  '@octokit/plugin-paginate-rest': '^2.16.8',
-  '@octokit/plugin-rest-endpoint-methods': '^5.12.0',
-  '@octokit/plugin-retry': '^3.0.9',
-  '@octokit/plugin-throttling': '^3.5.1',
-  '@octokit/types': '^6.26.0'
-}
-devDependencies: {
-  '@octokit/tsconfig': '^1.0.2',
-  '@pika/pack': '^0.5.0',
-  '@pika/plugin-build-node': '^0.9.2',
-  '@pika/plugin-build-web': '^0.9.2',
-  '@pika/plugin-ts-standard-pkg': '^0.9.2',
-  '@types/jest': '^27.0.0',
-  '@types/node': '^14.14.36',
-  '@types/node-fetch': '^2.5.10',
-  'fetch-mock': '^9.11.0',
-  jest: '^27.0.0',
-  mockdate: '^3.0.5',
-  'node-fetch': '^2.6.7',
-  prettier: '2.4.1',
-  'semantic-release': '^18.0.0',
-  'semantic-release-plugin-update-version-in-files': '^1.1.0',
-  'ts-jest': '^27.0.0-next.12',
-  typescript: '^4.2.3'
-}
-
+Waiting for all requests to finish
+2022-03-31T01:16:43.982Z - GitHub counter 1.30 req/s
+2022-03-31T01:16:43.982Z - npm counter 0.00 req/s
+2022-03-31T01:16:53.988Z - GitHub counter 1.40 req/s
+2022-03-31T01:16:53.989Z - npm counter 0.00 req/s
+2022-03-31T01:17:03.995Z - GitHub counter 1.40 req/s
+2022-03-31T01:17:03.995Z - npm counter 0.10 req/s
+2022-03-31T01:17:14.000Z - GitHub counter 1.40 req/s
+2022-03-31T01:17:14.000Z - npm counter 0.70 req/s
 #############################################################################################
-
 GitHub information:
-Name: fixtures
-Description: Fixtures for all the octokittens
+Name: request-action
+Description: A GitHub Action to send arbitrary requests to GitHub's REST API
 Language: JavaScript
-Last Updated: 2021-12-18T17:46:35Z
+Last Updated: 2022-03-30T01:51:07Z
 
 package.json information:
-Name: @octokit/fixtures
+Name: @octokit/request-action
 Version: 0.0.0-development
-Description: Fixtures for all the octokittens
-Keywords: []
-dependencies: {
-  'json-diff': '^0.5.3',
-  lodash: '^4.17.11',
-  nock: '^13.0.0',
-  'url-template': '^2.0.8'
-}
-devDependencies: {
-  '@types/jest': '^27.0.0',
-  axios: '^0.22.0',
-  'axios-debug-log': '^0.8.0',
-  bottleneck: '^2.12.0',
-  chalk: '^4.0.0',
-  envalid: '^7.0.0',
-  'get-stream': '^6.0.0',
-  glob: '^7.1.3',
-  'gunzip-maybe': '^1.4.1',
-  'humanize-string': '^2.0.0',
-  'into-stream': '^7.0.0',
-  jest: '^27.0.4',
-  minimist: '^1.2.5',
-  mkdirp: '^1.0.3',
-  prettier: '2.4.1',
-  proxyquire: '^2.1.0',
-  'semantic-release': '^18.0.0',
-  'tar-stream': '^2.0.1'
-}
+Description: A GitHub Action to send arbitrary requests to GitHub's REST API
+Keywords: [ 'github-action' ]
 
+
+Dependencies:
+         @actions/core  - Used version: ^1.2.6 | Latest version: 1.6.0
+         @octokit/action  - Used version: ^3.1.6 | Latest version: 3.18.0
+         js-yaml  - Used version: ^4.0.0 | Latest version: 4.1.0
 #############################################################################################
 
-...
+#############################################################################################
+GitHub information:
+Name: auth-app.js
+Description: GitHub App authentication for JavaScript
+Language: TypeScript
+Last Updated: 2022-03-18T12:01:05Z
 
+package.json information:
+Name: @octokit/auth-app
+Version: 0.0.0-development
+Description: GitHub App authentication for JavaScript
+Keywords: [ 'github', 'octokit', 'authentication', 'api' ]
+
+
+Dependencies:
+         @octokit/auth-oauth-app  - Used version: ^4.3.0 | Latest version: 4.3.0
+         @octokit/auth-oauth-user  - Used version: ^1.2.3 | Latest version: 1.3.0
+         @octokit/request  - Used version: ^5.6.0 | Latest version: 5.6.3
+         @octokit/request-error  - Used version: ^2.1.0 | Latest version: 2.1.0
+         @octokit/types  - Used version: ^6.0.3 | Latest version: 6.34.0
+         @types/lru-cache  - Used version: ^5.1.0 | Latest version: 7.6.1
+         deprecation  - Used version: ^2.3.1 | Latest version: 2.3.1
+         lru-cache  - Used version: ^6.0.0 | Latest version: 7.7.3
+         universal-github-app-jwt  - Used version: ^1.0.1 | Latest version: 1.1.0
+         universal-user-agent  - Used version: ^6.0.0 | Latest version: 7.0.0
+#############################################################################################
+
+#############################################################################################
+GitHub information:
+Name: auth-callback.js
+Description: GitHub API authentication using a callback method
+Language: TypeScript
+Last Updated: 2022-03-16T19:08:19Z
+
+package.json information:
+Name: @octokit/auth-callback
+Version: 0.0.0-development
+Description: GitHub API authentication using a callback method
+Keywords: [ 'github', 'api', 'sdk', 'toolkit' ]
+
+
+Dependencies:
+         None found
+#############################################################################################
+
+2022-03-31T01:17:24.006Z - GitHub counter 1.40 req/s
+2022-03-31T01:17:24.007Z - npm counter 0.50 req/s
+#############################################################################################
+GitHub information:
+Name: auth-oauth-app.js
+Description: GitHub OAuth App authentication for JavaScript
+Language: TypeScript
+Last Updated: 2022-02-26T06:27:37Z
+
+package.json information:
+Name: @octokit/auth-oauth-app
+Version: 0.0.0-development
+Description: GitHub OAuth App authentication for JavaScript
+Keywords: [ 'github', 'octokit', 'authentication', 'oauth', 'api' ]
+
+
+Dependencies:
+         @octokit/auth-oauth-device  - Used version: ^3.1.1 | Latest version: 3.1.2
+         @octokit/auth-oauth-user  - Used version: ^1.2.1 | Latest version: 1.3.0
+         @octokit/request  - Used version: ^5.3.0 | Latest version: 5.6.3
+         @octokit/types  - Used version: ^6.0.3 | Latest version: 6.34.0
+         @types/btoa-lite  - Used version: ^1.0.0 | Latest version: 1.0.0
+         btoa-lite  - Used version: ^1.0.0 | Latest version: 1.0.0
+         universal-user-agent  - Used version: ^6.0.0 | Latest version: 7.0.0
+#############################################################################################
+
+... 
+
+==============================================================
+
+Elapsed time: 2.21 minutes
+Github requests:
+         Total: 184 Average: 1.39 reqs/s
+npm requests:
+         Total: 146 Average: 1.10 reqs/s
+Total requests:
+         Total: 330 Average: 2.49 reqs/s
 
 ```
