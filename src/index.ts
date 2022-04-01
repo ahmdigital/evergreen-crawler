@@ -1,11 +1,11 @@
 
 import { Octokit, RestEndpointMethodTypes } from "@octokit/rest";
-import * as fs from "fs";
 import { getPackageManifest } from "query-registry";
 import { RequestCounter } from "./rate-limiting/request-counter";
 import { TokenBucket } from "./rate-limiting/token-bucket";
-import * as inquier from "inquirer";
-import { sleep } from "./utilts";
+import { sleep, getAccessToken } from "./utils";
+
+var Map = require('es6-map');
 
 //Ratelimiter is a POJO that contains a TokenBuckets and RequestCounters for each API source.
 type RateLimiter = {
@@ -25,37 +25,57 @@ type Repository = RestEndpointMethodTypes["repos"]["listForOrg"]["response"]["da
 // Defining the GitHub API client.
 let octokit: Octokit
 
-//Read the "access_token.txt" file to grab the accesstoken.
-async function getAccessToken(): Promise<string> {
+function generateDependencyTree(data: [string, string, any, [string, string][]][]): any {
+	let depNameMap: Map<string, number> = new Map();
+	let versions: Map<number, string> = new Map();
 
-	let access_token: string
-	try {
-		access_token = fs.readFileSync("access_token.txt").toString();
-		return access_token
-	} catch (e) {
-		let isInputValid = false
-		let processedAns: string
-		while (!isInputValid) {
-			const ans = await inquier.prompt(["access_token.txt file not found. Do you want to continue without one? (Yes)/No:"])
-			processedAns = (ans as string).toLowerCase().trim()
+	let repos: any[] = [];
 
-			isInputValid = processedAns === "yes"
-				|| processedAns === "no"
-				|| processedAns === "y"
-				|| processedAns === "n"
-				|| processedAns === "";
+	for (const [name, version, dependencies, newest] of data) {
+		if (!depNameMap.has(name)) { depNameMap.set(name, depNameMap.size) }
+
+		for (const [depName, depVersion] of newest) {
+			if (!depNameMap.has(depName)) { depNameMap.set(depName, depNameMap.size) }
+			versions.set(depNameMap.get(depName), depVersion)
 		}
 
-		if (processedAns === "no" || processedAns === "n")
-			throw new Error("access_token.txt file not found")
+		let deps = []
 
-		return ""
+		for (const depName in dependencies) {
+			const depVersion = dependencies[depName]
+			if (!depNameMap.has(depName)) { depNameMap.set(depName, depNameMap.size) }
+			deps.push([depNameMap.get(depName), depVersion])
+		}
+
+
+		repos.push({
+			dep: depNameMap.get(name),
+			version: version,
+			dependencies: deps,
+		})
 	}
+
+	console.log(depNameMap)
+	console.log(versions)
+
+	// //I honestly have no idea
+	// interface Dependency {
+	// 	name: string;
+	// 	version: string;
+	//   }
+
+	// let depNames: Record<number, Dependency> = {};
+	// for(const [depName, id] of Object.entries(depNameMap)){
+	// 	console.log(id.toString() + ' ' + depName + ' ' +  versions[id])
+	// 	depNames[id.toString()] = {name: depName, version: versions[id]}
+	// }
+	// console.log(depNames)
+	//return [depNames, repos]
+	return repos
 }
 
-
 //Find dependencies of a repository
-async function findDependencies(repo: Repository, rateLimiter: RateLimiter) {
+async function findDependencies(repo: Repository, rateLimiter: RateLimiter): Promise<[string, string, any, [string, string][]]> {
 
 	// Get main_branch name from repo
 	await rateLimiter.Github.tokenBucket.waitForTokens(1)
@@ -178,11 +198,13 @@ async function findDependencies(repo: Repository, rateLimiter: RateLimiter) {
 	})
 	console.log("#############################################################################################")
 	console.log()
+
+	return [name, version, dependencies, dependenciesVersions]
 }
 
 //Main function
 async function main() {
-	const accessToken = await getAccessToken()
+	const accessToken = getAccessToken()
 
 	octokit = new Octokit({
 		auth: accessToken,
@@ -228,9 +250,11 @@ async function main() {
 
 	const startTime = new Date();
 
+	let allDeps: [string, string, any, [string, string][]][] = [];
+
 	// For each repository, find its dependencies
 	for (const repo of jsOrTsRepos) {
-		findDependencies(repo, rateLimiter)
+		allDeps.push(await findDependencies(repo, rateLimiter))
 
 		//! This doesn't have much sense here, but I decided to leave it here to avoid forgetting about it.
 		//Avoid building of backpressure if the queues are too long
@@ -248,7 +272,7 @@ async function main() {
 	console.log("Waiting for all requests to finish")
 	await Promise.all([
 		rateLimiter.Github.tokenBucket.waitForShorterQueue(1000),
-		rateLimiter.Github.tokenBucket.waitForShorterQueue(1000),
+		rateLimiter.npm.tokenBucket.waitForShorterQueue(1000),
 	])
 
 	//Cleanup the req counters
@@ -292,6 +316,8 @@ async function main() {
 		((rateLimiter.Github.reqCounter.getTotalRequests() + rateLimiter.npm.reqCounter.getTotalRequests()) / (elapsedInMinutes * 60)).toFixed(2),
 		"reqs/s")
 
+
+	console.log(JSON.stringify(generateDependencyTree(allDeps)))
 }
 
 main()
