@@ -16,6 +16,8 @@
 		"esnext.asynciterable"
 	  ],
 	  "outDir": "./build/",
-	  "allowSyntheticDefaultImports": true
+	  "allowSyntheticDefaultImports": true,
+	  "experimentalDecorators": true,
+	  "downlevelIteration": true
 	}
   }
