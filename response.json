@@ -1,0 +1,714 @@
+{
+    "data": {
+        "organization": {
+            "id": "MDEyOk9yZ2FuaXphdGlvbjM0MzA0MzM=",
+            "repositories": {
+                "edges": [
+                    {
+                        "node": {
+                            "name": "octokit.rb",
+                            "primaryLanguage": {
+                                "name": "Ruby"
+                            },
+                            "description": "Ruby toolkit for the GitHub API",
+                            "dependencyGraphManifests": {
+                                "totalCount": 3,
+                                "nodes": [
+                                    {
+                                        "filename": "Gemfile"
+                                    },
+                                    {
+                                        "filename": "octokit.gemspec"
+                                    },
+                                    {
+                                        "filename": ".github/workflows/octokit.yml"
+                                    }
+                                ],
+                                "edges": [
+                                    {
+                                        "node": {
+                                            "blobPath": "/octokit/octokit.rb/blob/4-stable/Gemfile",
+                                            "dependencies": {
+                                                "totalCount": 10,
+                                                "nodes": [
+                                                    {
+                                                        "packageName": "awesome_print",
+                                                        "requirements": ">= 0",
+                                                        "hasDependencies": true,
+                                                        "repository": {
+                                                            "name": "awesome_print"
+                                                        },
+                                                        "packageManager": "RUBYGEMS",
+                                                        "packageLabel": "awesome_print"
+                                                    },
+                                                    {
+                                                        "packageName": "jruby-openssl",
+                                                        "requirements": ">= 0",
+                                                        "hasDependencies": false,
+                                                        "repository": {
+                                                            "name": "jruby-openssl"
+                                                        },
+                                                        "packageManager": "RUBYGEMS",
+                                                        "packageLabel": "jruby-openssl"
+                                                    },
+                                                    {
+                                                        "packageName": "json",
+                                                        "requirements": ">= 2.3.0",
+                                                        "hasDependencies": false,
+                                                        "repository": {
+                                                            "name": "json"
+                                                        },
+                                                        "packageManager": "RUBYGEMS",
+                                                        "packageLabel": "json"
+                                                    },
+                                                    {
+                                                        "packageName": "jwt",
+                                                        "requirements": "~> 2.2,>= 2.2.1",
+                                                        "hasDependencies": true,
+                                                        "repository": {
+                                                            "name": "ruby-jwt"
+                                                        },
+                                                        "packageManager": "RUBYGEMS",
+                                                        "packageLabel": "jwt"
+                                                    },
+                                                    {
+                                                        "packageName": "mime-types",
+                                                        "requirements": "~> 3.3,>= 3.3.1",
+                                                        "hasDependencies": true,
+                                                        "repository": {
+                                                            "name": "ruby-mime-types"
+                                                        },
+                                                        "packageManager": "RUBYGEMS",
+                                                        "packageLabel": "mime-types"
+                                                    },
+                                                    {
+                                                        "packageName": "multi_json",
+                                                        "requirements": "~> 1.14,>= 1.14.1",
+                                                        "hasDependencies": true,
+                                                        "repository": {
+                                                            "name": "multi_json"
+                                                        },
+                                                        "packageManager": "RUBYGEMS",
+                                                        "packageLabel": "multi_json"
+                                                    },
+                                                    {
+                                                        "packageName": "netrc",
+                                                        "requirements": "~> 0.11.0",
+                                                        "hasDependencies": true,
+                                                        "repository": {
+                                                            "name": "netrc"
+                                                        },
+                                                        "packageManager": "RUBYGEMS",
+                                                        "packageLabel": "netrc"
+                                                    },
+                                                    {
+                                                        "packageName": "pry-byebug",
+                                                        "requirements": ">= 0",
+                                                        "hasDependencies": true,
+                                                        "repository": {
+                                                            "name": "pry-byebug"
+                                                        },
+                                                        "packageManager": "RUBYGEMS",
+                                                        "packageLabel": "pry-byebug"
+                                                    },
+                                                    {
+                                                        "packageName": "rake",
+                                                        "requirements": "~> 13.0,>= 13.0.1",
+                                                        "hasDependencies": false,
+                                                        "repository": {
+                                                            "name": "rake"
+                                                        },
+                                                        "packageManager": "RUBYGEMS",
+                                                        "packageLabel": "rake"
+                                                    },
+                                                    {
+                                                        "packageName": "rb-fsevent",
+                                                        "requirements": "~> 0.10.3",
+                                                        "hasDependencies": true,
+                                                        "repository": {
+                                                            "name": "rb-fsevent"
+                                                        },
+                                                        "packageManager": "RUBYGEMS",
+                                                        "packageLabel": "rb-fsevent"
+                                                    }
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "node": {
+                                            "blobPath": "/octokit/octokit.rb/blob/4-stable/octokit.gemspec",
+                                            "dependencies": {
+                                                "totalCount": 3,
+                                                "nodes": [
+                                                    {
+                                                        "packageName": "bundler",
+                                                        "requirements": ">= 1,< 3",
+                                                        "hasDependencies": false,
+                                                        "repository": {
+                                                            "name": "rubygems"
+                                                        },
+                                                        "packageManager": "RUBYGEMS",
+                                                        "packageLabel": "bundler"
+                                                    },
+                                                    {
+                                                        "packageName": "faraday",
+                                                        "requirements": ">= 0.9",
+                                                        "hasDependencies": true,
+                                                        "repository": {
+                                                            "name": "faraday"
+                                                        },
+                                                        "packageManager": "RUBYGEMS",
+                                                        "packageLabel": "faraday"
+                                                    },
+                                                    {
+                                                        "packageName": "sawyer",
+                                                        "requirements": ">= 0.5.3,~> 0.8.0",
+                                                        "hasDependencies": true,
+                                                        "repository": {
+                                                            "name": "sawyer"
+                                                        },
+                                                        "packageManager": "RUBYGEMS",
+                                                        "packageLabel": "sawyer"
+                                                    }
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "node": {
+                                            "blobPath": "/octokit/octokit.rb/blob/4-stable/.github/workflows/octokit.yml",
+                                            "dependencies": {
+                                                "totalCount": 3,
+                                                "nodes": [
+                                                    {
+                                                        "packageName": "actions/cache",
+                                                        "requirements": "= 1",
+                                                        "hasDependencies": false,
+                                                        "repository": {
+                                                            "name": "cache"
+                                                        },
+                                                        "packageManager": "ACTIONS",
+                                                        "packageLabel": "actions/cache"
+                                                    },
+                                                    {
+                                                        "packageName": "actions/checkout",
+                                                        "requirements": "= 2",
+                                                        "hasDependencies": false,
+                                                        "repository": {
+                                                            "name": "checkout"
+                                                        },
+                                                        "packageManager": "ACTIONS",
+                                                        "packageLabel": "actions/checkout"
+                                                    },
+                                                    {
+                                                        "packageName": "ruby/setup-ruby",
+                                                        "requirements": "= 1",
+                                                        "hasDependencies": false,
+                                                        "repository": {
+                                                            "name": "setup-ruby"
+                                                        },
+                                                        "packageManager": "ACTIONS",
+                                                        "packageLabel": "ruby/setup-ruby"
+                                                    }
+                                                ]
+                                            }
+                                        }
+                                    }
+                                ]
+                            }
+                        },
+                        "cursor": "Y3Vyc29yOnYyOpK5MjAwOS0xMi0xMVQwODo0MTo0OSsxMTowMM4ABmBG"
+                    },
+                    {
+                        "node": {
+                            "name": "octokit.js",
+                            "primaryLanguage": {
+                                "name": "TypeScript"
+                            },
+                            "description": "The all-batteries-included GitHub SDK for Browsers, Node.js, and Deno.",
+                            "dependencyGraphManifests": {
+                                "totalCount": 7,
+                                "nodes": [
+                                    {
+                                        "filename": "package-lock.json"
+                                    },
+                                    {
+                                        "filename": "package.json"
+                                    },
+                                    {
+                                        "filename": "docs/package.json"
+                                    },
+                                    {
+                                        "filename": ".github/workflows/release.yml"
+                                    },
+                                    {
+                                        "filename": ".github/workflows/test.yml"
+                                    },
+                                    {
+                                        "filename": ".github/workflows/update-prettier.yml"
+                                    },
+                                    {
+                                        "filename": "docs/plugins/gatsby-plugin-versioned-docs/package.json"
+                                    }
+                                ],
+                                "edges": [
+                                    {
+                                        "node": {
+                                            "blobPath": "/octokit/octokit.js/blob/main/package-lock.json",
+                                            "dependencies": {
+                                                "totalCount": 10,
+                                                "nodes": [
+                                                    {
+                                                        "packageName": "ansi-regex",
+                                                        "requirements": "= 5.0.0",
+                                                        "hasDependencies": true,
+                                                        "repository": {
+                                                            "name": "ansi-regex"
+                                                        },
+                                                        "packageManager": "NPM",
+                                                        "packageLabel": "ansi-regex"
+                                                    },
+                                                    {
+                                                        "packageName": "ansi-regex",
+                                                        "requirements": "= 3.0.0",
+                                                        "hasDependencies": true,
+                                                        "repository": {
+                                                            "name": "ansi-regex"
+                                                        },
+                                                        "packageManager": "NPM",
+                                                        "packageLabel": "ansi-regex"
+                                                    },
+                                                    {
+                                                        "packageName": "ansi-regex",
+                                                        "requirements": "= 4.1.0",
+                                                        "hasDependencies": true,
+                                                        "repository": {
+                                                            "name": "ansi-regex"
+                                                        },
+                                                        "packageManager": "NPM",
+                                                        "packageLabel": "ansi-regex"
+                                                    },
+                                                    {
+                                                        "packageName": "ansi-regex",
+                                                        "requirements": "= 2.1.1",
+                                                        "hasDependencies": true,
+                                                        "repository": {
+                                                            "name": "ansi-regex"
+                                                        },
+                                                        "packageManager": "NPM",
+                                                        "packageLabel": "ansi-regex"
+                                                    },
+                                                    {
+                                                        "packageName": "json-schema",
+                                                        "requirements": "= 0.2.3",
+                                                        "hasDependencies": true,
+                                                        "repository": {
+                                                            "name": "json-schema"
+                                                        },
+                                                        "packageManager": "NPM",
+                                                        "packageLabel": "json-schema"
+                                                    },
+                                                    {
+                                                        "packageName": "marked",
+                                                        "requirements": "= 2.1.3",
+                                                        "hasDependencies": true,
+                                                        "repository": {
+                                                            "name": "marked"
+                                                        },
+                                                        "packageManager": "NPM",
+                                                        "packageLabel": "marked"
+                                                    },
+                                                    {
+                                                        "packageName": "trim-newlines",
+                                                        "requirements": "= 2.0.0",
+                                                        "hasDependencies": true,
+                                                        "repository": {
+                                                            "name": "trim-newlines"
+                                                        },
+                                                        "packageManager": "NPM",
+                                                        "packageLabel": "trim-newlines"
+                                                    },
+                                                    {
+                                                        "packageName": "trim-newlines",
+                                                        "requirements": "= 3.0.1",
+                                                        "hasDependencies": true,
+                                                        "repository": {
+                                                            "name": "trim-newlines"
+                                                        },
+                                                        "packageManager": "NPM",
+                                                        "packageLabel": "trim-newlines"
+                                                    },
+                                                    {
+                                                        "packageName": "url-regex",
+                                                        "requirements": "= 5.0.0",
+                                                        "hasDependencies": true,
+                                                        "repository": {
+                                                            "name": "url-regex"
+                                                        },
+                                                        "packageManager": "NPM",
+                                                        "packageLabel": "url-regex"
+                                                    },
+                                                    {
+                                                        "packageName": "yargs-parser",
+                                                        "requirements": "= 13.1.2",
+                                                        "hasDependencies": true,
+                                                        "repository": {
+                                                            "name": "yargs-parser"
+                                                        },
+                                                        "packageManager": "NPM",
+                                                        "packageLabel": "yargs-parser"
+                                                    }
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "node": {
+                                            "blobPath": "/octokit/octokit.js/blob/main/package.json",
+                                            "dependencies": {
+                                                "totalCount": 10,
+                                                "nodes": [
+                                                    {
+                                                        "packageName": "@octokit/app",
+                                                        "requirements": "^ 12.0.4",
+                                                        "hasDependencies": true,
+                                                        "repository": {
+                                                            "name": "app.js"
+                                                        },
+                                                        "packageManager": "NPM",
+                                                        "packageLabel": "@octokit/app"
+                                                    },
+                                                    {
+                                                        "packageName": "@octokit/core",
+                                                        "requirements": "^ 3.5.1",
+                                                        "hasDependencies": true,
+                                                        "repository": {
+                                                            "name": "core.js"
+                                                        },
+                                                        "packageManager": "NPM",
+                                                        "packageLabel": "@octokit/core"
+                                                    },
+                                                    {
+                                                        "packageName": "@octokit/oauth-app",
+                                                        "requirements": "^ 3.5.1",
+                                                        "hasDependencies": true,
+                                                        "repository": {
+                                                            "name": "oauth-app.js"
+                                                        },
+                                                        "packageManager": "NPM",
+                                                        "packageLabel": "@octokit/oauth-app"
+                                                    },
+                                                    {
+                                                        "packageName": "@octokit/plugin-paginate-rest",
+                                                        "requirements": "^ 2.16.8",
+                                                        "hasDependencies": true,
+                                                        "repository": {
+                                                            "name": "plugin-paginate-rest.js"
+                                                        },
+                                                        "packageManager": "NPM",
+                                                        "packageLabel": "@octokit/plugin-paginate-rest"
+                                                    },
+                                                    {
+                                                        "packageName": "@octokit/plugin-rest-endpoint-methods",
+                                                        "requirements": "^ 5.12.0",
+                                                        "hasDependencies": true,
+                                                        "repository": {
+                                                            "name": "plugin-rest-endpoint-methods.js"
+                                                        },
+                                                        "packageManager": "NPM",
+                                                        "packageLabel": "@octokit/plugin-rest-endpoint-methods"
+                                                    },
+                                                    {
+                                                        "packageName": "@octokit/plugin-retry",
+                                                        "requirements": "^ 3.0.9",
+                                                        "hasDependencies": true,
+                                                        "repository": {
+                                                            "name": "plugin-retry.js"
+                                                        },
+                                                        "packageManager": "NPM",
+                                                        "packageLabel": "@octokit/plugin-retry"
+                                                    },
+                                                    {
+                                                        "packageName": "@octokit/plugin-throttling",
+                                                        "requirements": "^ 3.5.1",
+                                                        "hasDependencies": true,
+                                                        "repository": {
+                                                            "name": "plugin-throttling.js"
+                                                        },
+                                                        "packageManager": "NPM",
+                                                        "packageLabel": "@octokit/plugin-throttling"
+                                                    },
+                                                    {
+                                                        "packageName": "@octokit/tsconfig",
+                                                        "requirements": "^ 1.0.2",
+                                                        "hasDependencies": false,
+                                                        "repository": {
+                                                            "name": "tsconfig"
+                                                        },
+                                                        "packageManager": "NPM",
+                                                        "packageLabel": "@octokit/tsconfig"
+                                                    },
+                                                    {
+                                                        "packageName": "@octokit/types",
+                                                        "requirements": "^ 6.26.0",
+                                                        "hasDependencies": true,
+                                                        "repository": {
+                                                            "name": "types.ts"
+                                                        },
+                                                        "packageManager": "NPM",
+                                                        "packageLabel": "@octokit/types"
+                                                    },
+                                                    {
+                                                        "packageName": "@pika/pack",
+                                                        "requirements": "^ 0.5.0",
+                                                        "hasDependencies": true,
+                                                        "repository": {
+                                                            "name": "pika-pack"
+                                                        },
+                                                        "packageManager": "NPM",
+                                                        "packageLabel": "@pika/pack"
+                                                    }
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "node": {
+                                            "blobPath": "/octokit/octokit.js/blob/main/docs/package.json",
+                                            "dependencies": {
+                                                "totalCount": 10,
+                                                "nodes": [
+                                                    {
+                                                        "packageName": "marked",
+                                                        "requirements": "^ 2.0.0",
+                                                        "hasDependencies": true,
+                                                        "repository": {
+                                                            "name": "marked"
+                                                        },
+                                                        "packageManager": "NPM",
+                                                        "packageLabel": "marked"
+                                                    },
+                                                    {
+                                                        "packageName": "@gatsby-contrib/gatsby-plugin-elasticlunr-search",
+                                                        "requirements": "^ 3.0.0",
+                                                        "hasDependencies": true,
+                                                        "repository": {
+                                                            "name": "gatsby-plugin-elasticlunr-search"
+                                                        },
+                                                        "packageManager": "NPM",
+                                                        "packageLabel": "@gatsby-contrib/gatsby-plugin-elasticlunr-search"
+                                                    },
+                                                    {
+                                                        "packageName": "gatsby",
+                                                        "requirements": "^ 2.19.12",
+                                                        "hasDependencies": true,
+                                                        "repository": {
+                                                            "name": "gatsby"
+                                                        },
+                                                        "packageManager": "NPM",
+                                                        "packageLabel": "gatsby"
+                                                    },
+                                                    {
+                                                        "packageName": "gatsby-plugin-react-helmet",
+                                                        "requirements": "^ 3.0.12",
+                                                        "hasDependencies": true,
+                                                        "repository": {
+                                                            "name": "gatsby"
+                                                        },
+                                                        "packageManager": "NPM",
+                                                        "packageLabel": "gatsby-plugin-react-helmet"
+                                                    },
+                                                    {
+                                                        "packageName": "gatsby-plugin-typography",
+                                                        "requirements": "^ 2.2.6",
+                                                        "hasDependencies": true,
+                                                        "repository": {
+                                                            "name": "gatsby"
+                                                        },
+                                                        "packageManager": "NPM",
+                                                        "packageLabel": "gatsby-plugin-typography"
+                                                    },
+                                                    {
+                                                        "packageName": "gatsby-remark-prismjs",
+                                                        "requirements": "^ 3.2.6",
+                                                        "hasDependencies": true,
+                                                        "repository": {
+                                                            "name": "gatsby"
+                                                        },
+                                                        "packageManager": "NPM",
+                                                        "packageLabel": "gatsby-remark-prismjs"
+                                                    },
+                                                    {
+                                                        "packageName": "gatsby-source-filesystem",
+                                                        "requirements": "^ 2.0.28",
+                                                        "hasDependencies": true,
+                                                        "repository": {
+                                                            "name": "gatsby"
+                                                        },
+                                                        "packageManager": "NPM",
+                                                        "packageLabel": "gatsby-source-filesystem"
+                                                    },
+                                                    {
+                                                        "packageName": "gatsby-source-git",
+                                                        "requirements": "^ 1.0.2",
+                                                        "hasDependencies": true,
+                                                        "repository": {
+                                                            "name": "gatsby-source-git"
+                                                        },
+                                                        "packageManager": "NPM",
+                                                        "packageLabel": "gatsby-source-git"
+                                                    },
+                                                    {
+                                                        "packageName": "gatsby-transformer-remark",
+                                                        "requirements": "^ 2.3.8",
+                                                        "hasDependencies": true,
+                                                        "repository": {
+                                                            "name": "gatsby"
+                                                        },
+                                                        "packageManager": "NPM",
+                                                        "packageLabel": "gatsby-transformer-remark"
+                                                    },
+                                                    {
+                                                        "packageName": "html-react-parser",
+                                                        "requirements": "^ 1.0.0",
+                                                        "hasDependencies": true,
+                                                        "repository": {
+                                                            "name": "html-react-parser"
+                                                        },
+                                                        "packageManager": "NPM",
+                                                        "packageLabel": "html-react-parser"
+                                                    }
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "node": {
+                                            "blobPath": "/octokit/octokit.js/blob/main/.github/workflows/release.yml",
+                                            "dependencies": {
+                                                "totalCount": 2,
+                                                "nodes": [
+                                                    {
+                                                        "packageName": "actions/checkout",
+                                                        "requirements": "= 2",
+                                                        "hasDependencies": false,
+                                                        "repository": {
+                                                            "name": "checkout"
+                                                        },
+                                                        "packageManager": "ACTIONS",
+                                                        "packageLabel": "actions/checkout"
+                                                    },
+                                                    {
+                                                        "packageName": "actions/setup-node",
+                                                        "requirements": "= 2",
+                                                        "hasDependencies": false,
+                                                        "repository": {
+                                                            "name": "setup-node"
+                                                        },
+                                                        "packageManager": "ACTIONS",
+                                                        "packageLabel": "actions/setup-node"
+                                                    }
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "node": {
+                                            "blobPath": "/octokit/octokit.js/blob/main/.github/workflows/test.yml",
+                                            "dependencies": {
+                                                "totalCount": 3,
+                                                "nodes": [
+                                                    {
+                                                        "packageName": "actions/cache",
+                                                        "requirements": "= 2",
+                                                        "hasDependencies": false,
+                                                        "repository": {
+                                                            "name": "cache"
+                                                        },
+                                                        "packageManager": "ACTIONS",
+                                                        "packageLabel": "actions/cache"
+                                                    },
+                                                    {
+                                                        "packageName": "actions/checkout",
+                                                        "requirements": "= 2",
+                                                        "hasDependencies": false,
+                                                        "repository": {
+                                                            "name": "checkout"
+                                                        },
+                                                        "packageManager": "ACTIONS",
+                                                        "packageLabel": "actions/checkout"
+                                                    },
+                                                    {
+                                                        "packageName": "actions/setup-node",
+                                                        "requirements": "= 2",
+                                                        "hasDependencies": false,
+                                                        "repository": {
+                                                            "name": "setup-node"
+                                                        },
+                                                        "packageManager": "ACTIONS",
+                                                        "packageLabel": "actions/setup-node"
+                                                    }
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "node": {
+                                            "blobPath": "/octokit/octokit.js/blob/main/.github/workflows/update-prettier.yml",
+                                            "dependencies": {
+                                                "totalCount": 3,
+                                                "nodes": [
+                                                    {
+                                                        "packageName": "actions/checkout",
+                                                        "requirements": "= 2",
+                                                        "hasDependencies": false,
+                                                        "repository": {
+                                                            "name": "checkout"
+                                                        },
+                                                        "packageManager": "ACTIONS",
+                                                        "packageLabel": "actions/checkout"
+                                                    },
+                                                    {
+                                                        "packageName": "actions/setup-node",
+                                                        "requirements": "= 2",
+                                                        "hasDependencies": false,
+                                                        "repository": {
+                                                            "name": "setup-node"
+                                                        },
+                                                        "packageManager": "ACTIONS",
+                                                        "packageLabel": "actions/setup-node"
+                                                    },
+                                                    {
+                                                        "packageName": "gr2m/create-or-update-pull-request-action",
+                                                        "requirements": "= 1.x",
+                                                        "hasDependencies": false,
+                                                        "repository": {
+                                                            "name": "create-or-update-pull-request-action"
+                                                        },
+                                                        "packageManager": "ACTIONS",
+                                                        "packageLabel": "gr2m/create-or-update-pull-request-action"
+                                                    }
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "node": {
+                                            "blobPath": "/octokit/octokit.js/blob/main/docs/plugins/gatsby-plugin-versioned-docs/package.json",
+                                            "dependencies": {
+                                                "totalCount": 0,
+                                                "nodes": []
+                                            }
+                                        }
+                                    }
+                                ]
+                            }
+                        },
+                        "cursor": "Y3Vyc29yOnYyOpK5MjAxMC0wNi0xMFQwMzowNzowMysxMDowMM4ACt0o"
+                    }
+                ]
+            }
+        }
+    }
+}
