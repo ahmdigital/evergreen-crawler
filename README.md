@@ -5,17 +5,36 @@ This repo is a spike on how to use the GitHub API to
  - Locating the package.json file for a repository
  - Downloading and Parsing the contents of the package.json file
  - Finding the current version of the dependencies listend in the package.json file using npm API
- 
+
 Next steps:
  - Send an alert to slack once a dependency is two majors behind
  - Retrieve data from dependency's repositories as well, in order to create a dependency graph
  - Store the dependency graph into a database
 
 
+## Repository Setup
+
+Before you commit, please configure pre-commit with:
+
+`pre-commit install`
+
+Now, every time you commit, it will run hooks to fix various styling and linting problem.
+
+### Running pre-commit hooks manually
+
+`pre-commit run --all-files`
+
+### Skipping pre-commit hooks
+
+Please avoid doing this at all cost.
+
+`git commit -n -m "Your commit message"`
+
+The `-n` allows you to skip git hooks.
 ## Usage
  - clone the repo and `cd` into it
  - [create a personal access token](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token) on GitHub. If you are lazy and don't wanna do this you can skip this and the next step, but you will probably be ratelimited after a few requests.
- - create a file called `access_token.txt`, paste your access token there and hit save. This file is .gitignored. 
+ - create a file called `access_token.txt`, paste your access token there and hit save. This file is .gitignored.
  - run `npm install` to install the necesary dependencies
  - run `tsc -w` to let typescript compile the code and whatch for changes. This will create the build folder
  - run `node ./build/index.js` in a new terminal tab to execute the code
@@ -125,7 +144,7 @@ Dependencies:
          universal-user-agent  - Used version: ^6.0.0 | Latest version: 7.0.0
 #############################################################################################
 
-... 
+...
 
 ==============================================================
 

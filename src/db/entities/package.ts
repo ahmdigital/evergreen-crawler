@@ -5,7 +5,7 @@
 export const enum PackageType {
 	Internal = "internal",
 	External = "external"
-} 
+}
 
 /**
  * PackageLanguage tells wether the package is written in javascript or typescript

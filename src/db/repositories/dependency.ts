@@ -26,14 +26,14 @@ export class DependencyRepository extends Repository{
 			?,
 			?
 		)`, [d.masterId, d.slaveId, d.usedVersion, d.type]);
-		
+
 		d.id = result.lastID || 0;
 	}
 
 	/**
 	 * Get a dependency by id
 	 * @param id the dependency id
-	 * @returns 
+	 * @returns
 	 */
 	async getById(id:number){
 		const result = await this.db.get(`

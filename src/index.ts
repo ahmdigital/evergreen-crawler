@@ -302,7 +302,7 @@ async function main() {
 	});
 
 	// Filter for repositories written in javascript or typescript.
-	//!	Note, some repositories might not have a .language property set. 
+	//!	Note, some repositories might not have a .language property set.
 	const jsOrTsRepos = repos.data
 		.filter(repo => repo.language === "TypeScript" || repo.language === "JavaScript")
 
@@ -365,7 +365,3 @@ async function main() {
 }
 
 main()
-
-
-
-
