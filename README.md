@@ -1,6 +1,6 @@
 # RepoCrawler
 
-This repo is a spike on how to use the GitHub API to
+This repository is a spike on how to use the GitHub API to
  - List repositories under an organization
  - Locating the package.json file for a repository
  - Downloading and Parsing the contents of the package.json file
@@ -32,11 +32,11 @@ Please avoid doing this at all cost.
 
 The `-n` allows you to skip git hooks.
 ## Usage
- - clone the repo and `cd` into it
+ - clone the repository and `cd` into it
  - [create a personal access token](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token) on GitHub. If you are lazy and don't wanna do this you can skip this and the next step, but you will probably be ratelimited after a few requests.
  - create a file called `access_token.txt`, paste your access token there and hit save. This file is .gitignored.
  - run `npm install` to install the necesary dependencies
- - run `tsc -w` to let typescript compile the code and whatch for changes. This will create the build folder
+ - run `tsc -w` to let TypeScript compile the code and whatch for changes. This will create the build folder
  - run `node ./build/index.js` in a new terminal tab to execute the code
 
 If you want to play around, simply edit the code (tsc will compile it automatically as long as `tsc -w` is running), finally run `node ./build/index.js` again.
