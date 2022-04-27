@@ -1,12 +1,14 @@
 import { Octokit, RestEndpointMethodTypes } from "@octokit/rest";
-import * as fs from "fs";
 import { getPackageManifest } from "query-registry";
 import { RequestCounter } from "./rate-limiting/request-counter";
 import { TokenBucket } from "./rate-limiting/token-bucket";
 import * as inquier from "inquirer";
-import { sleep } from "./utilts";
 import { graphql } from "@octokit/graphql";
 import type { GraphQlQueryResponseData, GraphqlResponseError } from "@octokit/graphql";
+import { sleep, getAccessToken } from "./utils";
+import { printHashBar, printSpacer } from "./ioFormatting";
+
+var Map = require('es6-map');
 
 //Ratelimiter is a POJO that contains a TokenBuckets and RequestCounters for each API source.
 type RateLimiter = {
@@ -63,339 +65,342 @@ type Repository =
 // Defining the GitHub API client.
 let octokit: Octokit;
 
-//Read the "access_token.txt" file to grab the accesstoken.
-async function getAccessToken(): Promise<string> {
-  let access_token: string;
-  try {
-    access_token = fs.readFileSync("access_token.txt").toString();
-    return access_token;
-  } catch (e) {
-    let isInputValid = false;
-    let processedAns: string;
-    while (!isInputValid) {
-      const ans = await inquier.prompt([
-        "access_token.txt file not found. Do you want to continue without one? (Yes)/No:",
-      ]);
-      processedAns = (ans as string).toLowerCase().trim();
+/*
+Print a nice report for the given repository
+*/
+async function printDependencies(packageJsonContent: any, repo: Repository, dependenciesVersions: any, dependencies: [string, string][]){
+	const name = packageJsonContent?.name;
+	const version = packageJsonContent?.version;
+	const description = packageJsonContent?.description;
+	const keywords = packageJsonContent?.keywords;
 
-      isInputValid =
-        processedAns === "yes" ||
-        processedAns === "no" ||
-        processedAns === "y" ||
-        processedAns === "n" ||
-        processedAns === "";
-    }
+	printHashBar()
 
-    if (processedAns === "no" || processedAns === "n")
-      throw new Error("access_token.txt file not found");
+	// Extract and print some information that might be useful for future use.
+	console.log("GitHub information:")
+	console.log("Name:", repo.name)
+	console.log("Description:", repo.description ? repo.description : "[Missing]")
+	console.log("Language:", repo.language ? repo.language : "[Missing]")
+	console.log("Last Updated:", repo.updated_at ? repo.updated_at : "[Missing]")
 
-    return "";
-  }
+	console.log()
+
+	// Extract and print some information that might be useful for future use.
+	console.log("package.json information:")
+
+	console.log("Name:", name ? name : "[Missing]");
+	console.log("Version:", version ? version : "[Missing]");
+	console.log("Description:", description ? description : "[Missing]");
+	console.log("Keywords:", keywords ? keywords : "");
+
+	console.log()
+	console.log()
+	console.log("Dependencies:")
+
+	if (dependenciesVersions.length === 0) {
+		console.log("\t None found")
+	}
+
+	for(const [dependency, version] of dependenciesVersions){
+		console.log("\t", dependency, " - Used version:", dependencies[dependency], "| Latest version:", version)
+	}
+
+	printHashBar()
+	console.log()
+}
+
+function printRateLimitInfo(startTime: Date, endTime: Date, rateLimiter: RateLimiter){
+	const elapsedInMinutes = (endTime.getTime() - startTime.getTime()) / 1000 / 60
+
+	let printRT = function printRequestTimes(name: string, total: number){
+		console.log(name, " requests:")
+		console.log("\t",
+			"Total:",
+			total,
+			"Average:",
+			(total / (elapsedInMinutes * 60)).toFixed(2),
+			"reqs/s")
+	}
+
+	printSpacer()
+
+	console.log("Elapsed time:", elapsedInMinutes.toFixed(2), "minutes")
+
+	printRT("Github", rateLimiter.Github.reqCounter.getTotalRequests())
+	printRT("npm", rateLimiter.npm.reqCounter.getTotalRequests())
+	printRT("Total", rateLimiter.Github.reqCounter.getTotalRequests() + rateLimiter.npm.reqCounter.getTotalRequests())
 }
 
 //Find dependencies of a repository
-async function findDependencies(repo: Repository, rateLimiter: RateLimiter) {
-  // Get main_branch name from repo
-  await rateLimiter.Github.tokenBucket.waitForTokens(1);
-  rateLimiter.Github.reqCounter.addRequest();
-  const r = await octokit.repos.get({
-    owner: "octokit",
-    repo: repo.name,
-  });
+async function findDependencies(repo: Repository, rateLimiter: RateLimiter): Promise<[string, string, string, boolean, any, [string, string][]]> {
 
-  const main_branch = r.data.master_branch || "master";
+	// Get main_branch name from repo
+	await rateLimiter.Github.tokenBucket.waitForTokens(1)
+	rateLimiter.Github.reqCounter.addRequest()
+	const r = await octokit.repos.get({
+		owner: "octokit",
+		repo: repo.name,
+	});
 
-  // Get branch sha from branch
-  await rateLimiter.Github.tokenBucket.waitForTokens(1);
-  rateLimiter.Github.reqCounter.addRequest();
-  const branch = await octokit.repos.getBranch({
-    owner: "octokit",
-    repo: repo.name,
-    branch: main_branch,
-  });
+	const main_branch = r.data.master_branch || "master";
 
-  const sha = branch.data.commit.sha;
+	// Get branch sha from branch
+	await rateLimiter.Github.tokenBucket.waitForTokens(1)
+	rateLimiter.Github.reqCounter.addRequest()
+	const branch = await octokit.repos.getBranch({
+		owner: "octokit",
+		repo: repo.name,
+		branch: main_branch,
+	});
 
-  // Get the repo tree, i.e. the list of all file and folder names in the repo.
-  // This is a recursive call, meaning even files inside folders will be returned.
-  // TODO: handle the case where the repo has a tree too big to be returned in one recursive call and must be paginated
-  await rateLimiter.Github.tokenBucket.waitForTokens(1);
-  rateLimiter.Github.reqCounter.addRequest();
-  const tree = await octokit.git.getTree({
-    owner: "octokit",
-    repo: repo.name,
-    tree_sha: sha,
-    recursive: "yes",
-  });
+	const sha = branch.data.commit.sha;
 
-  if (tree.data.truncated) {
-    console.log("Tree is truncated, we are missing some data :(");
-  }
+	// Get the repo tree, i.e. the list of all file and folder names in the repo.
+	// This is a recursive call, meaning even files inside folders will be returned.
+	// TODO: handle the case where the repo has a tree too big to be returned in one recursive call and must be paginated
+	await rateLimiter.Github.tokenBucket.waitForTokens(1)
+	rateLimiter.Github.reqCounter.addRequest()
+	const tree = await octokit.git.getTree({
+		owner: "octokit",
+		repo: repo.name,
+		tree_sha: sha,
+		recursive: "yes",
+	})
 
-  //filter for package.json files
-  const packageJsons = tree.data.tree.filter((item) =>
-    item.path.endsWith("package.json")
-  );
+	if (tree.data.truncated) {
+		console.log("Tree is truncated, we are missing some data :(");
+	}
 
-  if (packageJsons.length === 0) {
-    console.log("No package.json found");
-    return;
-  }
-  if (packageJsons.length > 1) {
-    //console.log("More than one package.json found");
-    //TODO: handle the case in which multiple package.json files are found
-  }
+	//filter for package.json files
+	const packageJsons = tree.data.tree
+		.filter(item => item.path.endsWith("package.json"))
 
-  const packageJson = packageJsons[0];
+	if (packageJsons.length === 0) {
+		console.log("No package.json found");
+		return
+	}
+	if (packageJsons.length > 1) {
+		//console.log("More than one package.json found");
+		//TODO: handle the case in which multiple package.json files are found
+	}
 
-  // Download and parse the content of the package.json
-  await rateLimiter.Github.tokenBucket.waitForTokens(1);
-  rateLimiter.Github.reqCounter.addRequest();
-  const packageJsonContent = await octokit.repos
-    .getContent({
-      owner: "octokit",
-      repo: repo.name,
-      path: packageJson.path,
-    })
-    .then((res) => (res.data as any)?.content) //the content keyword is not guaranteed to be present in the response
-    .then((content) => {
-      if (content === null) {
-        throw new Error("package.json is empty");
-      }
-      return content as string;
-    })
-    .then((content) => Buffer.from(content, "base64").toString()) // the content is served as base64, so we need to decode it into a string
-    .then((content) => JSON.parse(content)); // parse the JSON in the package.json
+	const packageJson = packageJsons[0];
 
-  //Use the npm api to get the version of dependencies
-  const dependencies = packageJsonContent?.dependencies || {};
-  //We'll store them here to print them later
-  const dependenciesVersions: [string, string][] = [];
+	// Download and parse the content of the package.json
+	await rateLimiter.Github.tokenBucket.waitForTokens(1)
+	rateLimiter.Github.reqCounter.addRequest()
+	const packageJsonContent = await octokit.repos.getContent({
+		owner: "octokit",
+		repo: repo.name,
+		path: packageJson.path,
+	})
+		.then(res => (res.data as any)?.content)                     //the content keyword is not guaranteed to be present in the response
+		.then(content => {
+			if (content === null) {
+				throw new Error("package.json is empty");
+			}
+			return content as string;
+		})
+		.then(content => Buffer.from(content, 'base64').toString())  // the content is served as base64, so we need to decode it into a string
+		.then(content => JSON.parse(content));						 // parse the JSON in the package.json
 
-  for (const dependency in dependencies) {
-    await rateLimiter.npm.tokenBucket.waitForTokens(1);
-    rateLimiter.npm.reqCounter.addRequest();
-    const manifest = await getPackageManifest({ name: dependency });
+	//Use the npm api to get the version of dependencies
+	const dependencies = packageJsonContent?.dependencies || {}
+	//We'll store them here to print them later
+	const dependenciesVersions: [string, string][] = []
 
-    dependenciesVersions.push([dependency, manifest.version]);
-  }
+	for (const dependency in dependencies) {
+		await rateLimiter.npm.tokenBucket.waitForTokens(1)
+		rateLimiter.npm.reqCounter.addRequest()
+		const manifest = await getPackageManifest({ name: dependency })
 
-  //Print a nice report for this repository
+		dependenciesVersions.push([dependency, manifest.version])
+	}
 
-  console.log(
-    "#############################################################################################"
-  );
-  const name = packageJsonContent?.name;
-  const version = packageJsonContent?.version;
-  const description = packageJsonContent?.description;
-  const keywords = packageJsonContent?.keywords;
+	await printDependencies(packageJsonContent, repo, dependenciesVersions, dependencies)
 
-  // Extract and print some information that might be useful for future use.
-  console.log("GitHub information:");
-  console.log("Name:", repo.name);
-  repo.description && console.log("Description:", repo.description);
-  repo.language && console.log("Language:", repo.language);
-  repo.updated_at && console.log("Last Updated:", repo.updated_at);
+	const name = packageJsonContent?.name;
+	const version = packageJsonContent?.version;
+	return [name, version, branch.data._links.html, r.data.archived, dependencies, dependenciesVersions]
+}
 
-  console.log();
+function depDataToJson(nameMap: Map<string, number>, data: Map<number, {version: string, link: string, internal: boolean, archived: boolean}>): string{
+	let res = ""
 
-  // Extract and print some information that might be useful for future use.
-  console.log("package.json information:");
+	res += '{'
 
-  name && console.log("Name:", name);
-  version && console.log("Version:", version);
-  description && console.log("Description:", description);
-  keywords && console.log("Keywords:", keywords);
+	for(const [name, id] of nameMap){
+		const thisData = data.get(id)
+		res += "\"" + id.toString() + "\": {"
+		res += "\"name\": \"" + name + "\","
+		res += "\"version\": \"" + thisData.version  + "\","
+		res += "\"link\": \"" + thisData.link + "\","
+		res += "\"internal\": " + thisData.internal + ","
+		res += "\"archived\": " + thisData.archived + ""
+		res += "}, "
+	}
 
-  console.log();
-  console.log();
-  console.log("Dependencies:");
+	//Remove extra comma, as trailing commas aren't allowed in JSON
+	if(res.length > 2){
+		res = res.slice(0, -2)
+	}
 
-  if (dependenciesVersions.length === 0) {
-    console.log("\t None found");
-  }
+	res += '}'
 
-  dependenciesVersions.forEach(([dependency, version]) => {
-    console.log(
-      "\t",
-      dependency,
-      " - Used version:",
-      dependencies[dependency],
-      "| Latest version:",
-      version
-    );
-  });
-  console.log(
-    "#############################################################################################"
-  );
-  console.log();
+	return res
+}
+
+function generateDependencyTree(data: Awaited<ReturnType<typeof findDependencies>>[]): any {
+	let depNameMap: Map<string, number> = new Map();
+
+	let depData: Map<number, {version: string, link: string, internal: boolean, archived: boolean}> = new Map();
+
+	let repos: any[] = [];
+
+	//This version here is wrong, we only use it if we have nothing else (it will get overwritten later)
+	for (const [name, version, link, isArchived, dependencies, newest] of data) {
+		if (!depNameMap.has(name)) {
+			depNameMap.set(name, depNameMap.size)
+			depData.set(depNameMap.get(name), {version: version ? version : "", link: link, internal: true, archived: isArchived})
+		} else{
+			depData.get(depNameMap.get(name)).link = link
+			depData.get(depNameMap.get(name)).internal = true
+		}
+
+		//TODO: The newest array shouldn be shared across all dependencies
+		for (const [depName, depVersion] of newest) {
+			if (!depNameMap.has(depName)) {
+				depNameMap.set(depName, depNameMap.size)
+				depData.set(depNameMap.get(depName), {version: "", link: "", internal: false,  archived: false})
+			}
+			depData.get(depNameMap.get(depName)).version = depVersion
+		}
+
+		let deps = []
+
+		for (const depName in dependencies) {
+			const depVersion = dependencies[depName]
+			if (!depNameMap.has(depName)) {
+				depNameMap.set(depName, depNameMap.size)
+				depData.set(depNameMap.get(depName), {version: "", link: "", internal: false,  archived: false})
+			}
+			deps.push([depNameMap.get(depName), depVersion])
+		}
+
+		repos.push({
+			dep: depNameMap.get(name),
+			dependencies: deps,
+		})
+	}
+
+	console.log(depNameMap)
+	console.log(depData)
+
+	console.log(depDataToJson(depNameMap, depData))
+
+	// //I honestly have no idea
+	// interface Dependency {
+	// 	name: string;
+	// 	version: string;
+	//   }
+
+	// let depNames: Record<number, Dependency> = {};
+	// for(const [depName, id] of Object.entries(depNameMap)){
+	// 	console.log(id.toString() + ' ' + depName + ' ' +  versions[id])
+	// 	depNames[id.toString()] = {name: depName, version: versions[id]}
+	// }
+	// console.log(depNames)
+	//return [depNames, repos]
+	return repos
 }
 
 //Main function
 async function main() {
-  const accessToken = await getAccessToken();
+	const accessToken = getAccessToken()
 
-  const graphqlWithAuth = graphql.defaults({
-    headers: {
-      authorization: `token ${accessToken}`,
-      accept: `application/vnd.github.hawkgirl-preview+json`,
-    },
-  });
-  let response: GraphQlQueryResponseData;
+	octokit = new Octokit({
+		auth: accessToken,
+		log: {
+			debug: () => { },
+			info: () => { },
+			warn: console.warn,
+			error: console.error,
+		},
+		request: {
+			agent: undefined,
+			fetch: undefined,
+			timeout: 30000,
+		}
+	})
 
-  response = await graphqlWithAuth(
-    `
-		query orgRepos($queryString: String!) {
-			organization(login: $queryString) {
-			  id
-			  repositories(first: 5, orderBy: {field: CREATED_AT, direction: ASC}) {
-				edges {
-				  node {
-					name
-				  primaryLanguage {
-				  name
-				  }
-					description
-					dependencyGraphManifests {
-					  totalCount
-					  nodes {
-						filename
-					  }
-					  edges {
-						node {
-						  blobPath
-						  dependencies(first : 2) {
-							totalCount
-							nodes {
-							  packageName
-							  requirements
-							  hasDependencies
-							  packageManager
-							}
-						  }
-						}
-					  }
-					}
-				  }
-				  cursor
-				}
-			  }
-			}
-		  }
-		`,
-    {
-      queryString: "octokit",
-    }
-  );
+	// List the public repositories owned by the octokit organization:
+	const repos = await octokit.repos.listForOrg({
+		org: "octokit",
+		type: "public",
+		per_page: 100,  //TODO: implement pagination
+	});
 
-  console.log(response);
-  
-  // Filter for repositories written in javascript or typescript.
-  //!	Note, some repositories might not have a .language property set.
-  const jsOrTsRepos = response?.organization?.repositories?.edges?.filter(
-    (repo) =>
-      repo.node.primaryLanguage.name === "TypeScript" ||
-      repo.node.primaryLanguage.name === "JavaScript"
-  );
-  jsOrTsRepos.forEach(console.log);
+	// Filter for repositories written in javascript or typescript.
+	//!	Note, some repositories might not have a .language property set. 
+	const jsOrTsRepos = repos.data
+		.filter(repo => repo.language === "TypeScript" || repo.language === "JavaScript")
 
-  const rateLimiter: RateLimiter = {
-    Github: {
-      // Github api allows 5000 reqs per hour. 5000/3600 = 1.388 reqs per second.
-      tokenBucket: new TokenBucket(100, 1.388, 0),
-      reqCounter: new RequestCounter(10000, "GitHub"),
-    },
-    npm: {
-      // Some sources suggest npm allows up to 5 million requests per month.
-      // 5000000 / (3600 * 24 *  30) = 1.929 reqs per second
-      tokenBucket: new TokenBucket(100, 1.929, 0),
-      reqCounter: new RequestCounter(10000, "npm"),
-    },
-  };
+	const rateLimiter: RateLimiter = {
+		Github: {
+			// Github api allows 5000 reqs per hour. 5000/3600 = 1.388 reqs per second.
+			tokenBucket: new TokenBucket(100, 1.388, 0),
+			reqCounter: new RequestCounter(10000, "GitHub")
+		},
+		npm: {
+			// Some sources suggest npm allows up to 5 million requests per month.
+			// 5000000 / (3600 * 24 *  30) = 1.929 reqs per second
+			tokenBucket: new TokenBucket(100, 1.929, 0),
+			reqCounter: new RequestCounter(10000, "npm")
+		}
+	}
 
-  const startTime = new Date();
+	const startTime = new Date();
 
-  // For each repository, find its dependencies
-  for (const repo of jsOrTsRepos) {
-    findDependencies(repo, rateLimiter);
+	let allDepPromises: ReturnType<typeof findDependencies>[] = [];
 
-    //! This doesn't have much sense here, but I decided to leave it here to avoid forgetting about it.
-    //Avoid building of backpressure if the queues are too long
-    // if (rateLimiter.Github.tokenBucket.getQueueLength() + rateLimiter.npm.tokenBucket.getQueueLength() > 1000) {
-    // 	//wait for the queue length to reach length 0 by probing queue length every second
-    // 	console.log("Waiting for queues to drain")
-    // 	await Promise.all([
-    // 		rateLimiter.Github.tokenBucket.waitForShorterQueue(1000),
-    // 		rateLimiter.Github.tokenBucket.waitForShorterQueue(1000),
-    // 	])
-    // }
-  }
+	// For each repository, find its dependencies
+	for (const repo of jsOrTsRepos) {
+		allDepPromises.push(findDependencies(repo, rateLimiter))
 
-  //Wait for all requests to finish
-  console.log("Waiting for all requests to finish");
-  await Promise.all([
-    rateLimiter.Github.tokenBucket.waitForShorterQueue(1000),
-    rateLimiter.Github.tokenBucket.waitForShorterQueue(1000),
-  ]);
+		//! This doesn't have much sense here, but I decided to leave it here to avoid forgetting about it.
+		//Avoid building of backpressure if the queues are too long
+		// if (rateLimiter.Github.tokenBucket.getQueueLength() + rateLimiter.npm.tokenBucket.getQueueLength() > 1000) {
+		// 	//wait for the queue length to reach length 0 by probing queue length every second
+		// 	console.log("Waiting for queues to drain")
+		// 	await Promise.all([
+		// 		rateLimiter.Github.tokenBucket.waitForShorterQueue(1000),
+		// 		rateLimiter.Github.tokenBucket.waitForShorterQueue(1000),
+		// 	])
+		// }
+	}
 
-  //Cleanup the req counters
-  rateLimiter.Github.reqCounter.pause();
-  rateLimiter.npm.reqCounter.pause();
+	const allDeps: Awaited<ReturnType<typeof findDependencies>>[] =  await Promise.all(allDepPromises);
 
-  //Print req counters report
-  const endTime = new Date();
-  const elapsedInMinutes =
-    (endTime.getTime() - startTime.getTime()) / 1000 / 60;
+	//Wait for all requests to finish
+	console.log("Waiting for all requests to finish")
+	await Promise.all([
+		rateLimiter.Github.tokenBucket.waitForShorterQueue(1000),
+		rateLimiter.npm.tokenBucket.waitForShorterQueue(1000),
+	])
 
-  //At this point the bucket queue will be empty, but there might still be some requests in flight.
-  await sleep(3000);
+	//Cleanup the req counters
+	rateLimiter.Github.reqCounter.pause()
+	rateLimiter.npm.reqCounter.pause()
 
-  console.log();
-  console.log("==============================================================");
-  console.log();
+	//Print req counters report
+	const endTime = new Date();
 
-  console.log("Elapsed time:", elapsedInMinutes.toFixed(2), "minutes");
+	//At this point the bucket queue will be empty, but there might still be some requests in flight.
+	await sleep(3000)
 
-  console.log("Github requests:");
-  console.log(
-    "\t",
-    "Total:",
-    rateLimiter.Github.reqCounter.getTotalRequests(),
-    "Average:",
-    (
-      rateLimiter.Github.reqCounter.getTotalRequests() /
-      (elapsedInMinutes * 60)
-    ).toFixed(2),
-    "reqs/s"
-  );
+	printRateLimitInfo(startTime, endTime, rateLimiter);
 
-  console.log("npm requests:");
-  console.log(
-    "\t",
-    "Total:",
-    rateLimiter.npm.reqCounter.getTotalRequests(),
-    "Average:",
-    (
-      rateLimiter.npm.reqCounter.getTotalRequests() /
-      (elapsedInMinutes * 60)
-    ).toFixed(2),
-    "reqs/s"
-  );
-
-  console.log("Total requests:");
-  console.log(
-    "\t",
-    "Total:",
-    rateLimiter.Github.reqCounter.getTotalRequests() +
-      rateLimiter.npm.reqCounter.getTotalRequests(),
-    "Average:",
-    (
-      (rateLimiter.Github.reqCounter.getTotalRequests() +
-        rateLimiter.npm.reqCounter.getTotalRequests()) /
-      (elapsedInMinutes * 60)
-    ).toFixed(2),
-    "reqs/s"
-  );
+	console.log(JSON.stringify(generateDependencyTree(allDeps)))
 }
 
 main();

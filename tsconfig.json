@@ -18,6 +18,8 @@
 		"outDir": "./build/",
 		"allowSyntheticDefaultImports": true,
 		"target": "es5",
+		"experimentalDecorators": true,
+		"downlevelIteration": true,
 		// "module": "commonjs",
 		"sourceMap": true
 	}
