@@ -138,3 +138,19 @@ Total requests:
          Total: 330 Average: 2.49 reqs/s
 
 ```
+
+
+## TODO
+### Improvements
+* Pagination
+* Rate Limiter for github
+* Defaut Branch
+* Error handling
+* Dedicated Graphql file
+
+
+### Refactoring
+* Documentation
+* Break `index.ts` into functions
+* Update Readme
+* Optional, Codegen
