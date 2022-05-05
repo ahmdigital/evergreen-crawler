@@ -1,4 +1,4 @@
-import { Repository, getNpmDeps } from "./packageAPI";
+import { Repository, getDependenciesNpm } from "./packageAPI";
 
 export function depDataToJson(
 	nameMap: Map<string, number>,
@@ -34,7 +34,7 @@ export function depDataToJson(
 
 export function generateDependencyTree(
 	data: Repository[],
-	depMap: Awaited<ReturnType<typeof getNpmDeps>>
+	depMap: Awaited<ReturnType<typeof getDependenciesNpm>>
 ): any {
 	let depNameMap: Map<string, number> = new Map();
 
