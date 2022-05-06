@@ -1,6 +1,6 @@
 # Organisation Crawler
 
-The organisation Crawler uses the [GitHub GraphQL API](https://docs.github.com/en/graphql) to extract all of a GitHub organisation's repositories and their dependencies. The current version of the dependencies are found using `DependencyGraphManifest` graphQL object. The latest versions of the dependencies are found using calls to the npm api.
+The organisation Crawler uses the [GitHub GraphQL API](https://docs.GitHub.com/en/GraphQL) to extract all of a GitHub organisation's repositories and their dependencies. The current version of the dependencies are found using `DependencyGraphManifest` GraphQL object. The latest versions of the dependencies are found using calls to the npm API.
 
 The information is outputted to a `response.json` file which has a [schema](#output-schema) .
 
@@ -9,10 +9,10 @@ The current goal is to have the crawler run onn the the frontend
 ## TODO
 ### Improvements
 - [x] Pagination
-- [ ] Rate Limiter for github
+- [ ] Rate Limiter for GitHub
 - [ ] Default Branch
 - [ ] Error handling
-- [ ] Dedicated Graphql file
+- [ ] Dedicated GraphQL file
 - [ ] Slack alert if a once a dependency is two majors behind
 `
 #### Potential
@@ -20,7 +20,7 @@ The current goal is to have the crawler run onn the the frontend
 
 ## Package Managers support
 
-* Javascript
+* JavaScript
 * Python
 
 ## Repository Setup
@@ -45,7 +45,7 @@ The `-n` allows you to skip git hooks.
 
 ## Usage
 
-- [Create a personal access token](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token) on GitHub.
+- [Create a personal access token](https://docs.GitHub.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token) on GitHub.
 - Put your token inside the a .env file,  and add to .gitignore
 - run `npm install` to install the necessary dependencies
 - run `tsc -w` or `npx tsc -w` (if npm is not installed globally on your device) to let TypeScript compile the code and watch for changes. This will create the build folder
