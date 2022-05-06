@@ -60,6 +60,8 @@ export type RepoEdge = {
 }
 
 export type GraphResponse = {
+    errors: {
+        message: string }[] | null
 	rateLimit: {
 		cost: number,
 		remaining: number,
