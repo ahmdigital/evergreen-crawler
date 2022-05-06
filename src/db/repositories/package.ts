@@ -58,13 +58,13 @@ export class PackageRepository extends Repository {
 			?,
 			?
 		)`, [p.name, p.description, p.nodeVersion, p.internal, p.lang, p.version, p.repoUrl, p.npmUrl, p.lastUpdated, p.lastCrawled]);
-		
+
 		p.id = result.lastID || 0;
 	}
 
 	/**
 	 * Get a package by id
-	 * @param id 
+	 * @param id
 	 * @returns the package or undefined if not found
 	 */
 	async getById(id: number): Promise<Package | undefined> {
@@ -75,5 +75,3 @@ export class PackageRepository extends Repository {
 	}
 
 }
-
-

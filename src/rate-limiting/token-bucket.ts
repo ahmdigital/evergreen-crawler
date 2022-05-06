@@ -49,7 +49,7 @@ export class TokenBucket {
 	 * Try to consume some tokens from the bucket.
 	 * @param amount The number of tokens to consume.
 	 * @returns `true` if the tokens were consumed, `false` if there weren't enough tokens.
-	 */ 
+	 */
 	private getTokens(amount: number = 1) {
 		this.refillBucket()
 		if (this.tokens >= amount) {
@@ -65,7 +65,7 @@ export class TokenBucket {
 	 * the `waitForEmptyQueue()` method before waiting for more tokens in order to avoid going out of memory.
 	 * @param amount The number of tokens to wait for.
 	 * @returns A promise that resolves once the bucket has enough tokens.
-	 */ 
+	 */
 	async waitForTokens(amount: number = 1) {
 		if (amount > this.capacity) {
 			throw new Error("amount must be less than or equal to capacity")
@@ -76,14 +76,14 @@ export class TokenBucket {
 			if (previousPromise >= 0) {
 				await this.queue[previousPromise] // wait for the previous promise to resolve
 			}
-			
-			while (!this.getTokens(amount)) {		
+
+			while (!this.getTokens(amount)) {
 				// wait for the bucket to have enough tokens
 				const neededTokens = amount - this.tokens
 				const waitTime = (neededTokens / this.fillRate) * 1000
 				await sleep(waitTime)
 			}
-			
+
 			this.queue.shift()
 			resolve()
 		})
@@ -93,17 +93,17 @@ export class TokenBucket {
 
 	/**
 	 * Return the number of concurrent calls to `waitForTokens()`
-	 */ 
+	 */
 	getQueueLength() {
 		return this.queue.length
 	}
 
 	/**
 	 * Wait for the queue to reach a certain size before continuing to call waitForTokens() .
-	 * 
+	 *
 	 * @param interval The interval in milliseconds to use to check the queue length.
 	 * @param size The expected queue size to wait for.
-	 */ 
+	 */
 	waitForShorterQueue(interval: number = 1000, size:number = 0) {
 		if(size < 0) {
 			throw new Error("size must be greater than 0")
