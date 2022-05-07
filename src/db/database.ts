@@ -6,7 +6,7 @@ import { runMigrations } from './migrations/migration001'
 export type Database = sqliteDatabase<sqlite3Database, Statement>
 
 /**
- * Opens or creates a SQLite database and runs the migrations. 
+ * Opens or creates a SQLite database and runs the migrations.
  * @param filename the file name of the SQLite database, pass :memory: for an in-memory one
  */
 export async function openDatabase(filename:string){

@@ -17,7 +17,7 @@ afterEach(async () => {
 
 
 test('Create Package', async () => {
-	
+
 	const packageRepository = new PackageRepository(db);
 
 	const p:Package = {
@@ -35,9 +35,9 @@ test('Create Package', async () => {
 	}
 
 	await packageRepository.create(p)
-	
+
 	expect(p.id).toBeDefined()
-	
+
 	//ensure that p2 is equal to p
 	const p2 = await packageRepository.getById(p.id)
 
@@ -55,10 +55,9 @@ test('Create Package', async () => {
 	const lastUpdated = new Date(p.lastUpdated)
 	lastUpdated.setMilliseconds(0)
 	expect(p2.lastUpdated.getTime()).toBe(lastUpdated.getTime())
-	
+
 	//milliseconds are lost
 	const lastCrawled = new Date(p.lastCrawled)
 	lastCrawled.setMilliseconds(0)
 	expect(p2.lastCrawled.getTime()).toBe(lastCrawled.getTime())
 });
-

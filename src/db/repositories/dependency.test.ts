@@ -78,4 +78,3 @@ test('Create Dependency', async () => {
 	expect(d2.usedVersion).toBe(d.usedVersion)
 	expect(d2.type).toBe(d.type)
 });
-
