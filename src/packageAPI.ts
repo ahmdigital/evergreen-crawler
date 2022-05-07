@@ -13,7 +13,7 @@ export const APIParameters = {
 		// PyPI has no set rate limit, but says to "[t]ry not to make a lot of requests (thousands) in a short amount
 		// of time (minutes)", and "it’s preferred to make requests in serial over a longer amount of time if 
 		// possible", so we'll keep it at 1000 a minute for now.
-		rateLimit: 60 / 1000,
+		rateLimit: 1000 /60,
 		intialTokens: 1
 	},
 }
@@ -125,14 +125,17 @@ export async function queryDependenyPyPI(dependency: string, rateLimiter: Packag
 	let bestVersion: string = "0"
 	let bestVersionObject: PythonPackageVersion = {epoch: 0, first: 0, rest: [], isPrerelease: true}
 
-	console.log(data.info.version)
+	//We have to look through all releases to find the most recent, non-pre-release version
 	for (const release in data.releases) {
-		console.log(release)
 		const version = parsePythonPackageVersion(release)
-		console.log(version)
+
+		if(greaterThanPythonPackageVersion(version, bestVersionObject)){
+			bestVersionObject = version
+			bestVersion = release
+		}
 	}
 
-	return { name: dependency, data: { version: data.info.version } }
+	return { name: dependency, data: { version: bestVersion } }
 }
 
 //Calls the npm API for all dependencies in the given listPackageRateLPackageRateLimiter) {
@@ -141,6 +144,21 @@ export async function getDependenciesNpm(dependencies: string[], rateLimiter: Pa
 
 	const depList = await Promise.all(
 		dependencies.map((dependency) => queryDependenyNpm(dependency, rateLimiter))
+	);
+
+	for (const dependency of depList) {
+		depMap.set(dependency.name, dependency.data)
+	}
+
+	return depMap
+}
+
+//Calls the PyPI API for all dependencies in the given listPackageRateLPackageRateLimiter) {
+export async function getDependenciesPyPI(dependencies: string[], rateLimiter: PackageRateLimiter) {
+	let depMap: Map<string, { version: string }> = new Map()
+
+	const depList = await Promise.all(
+		dependencies.map((dependency) => queryDependenyPyPI(dependency, rateLimiter))
 	);
 
 	for (const dependency of depList) {

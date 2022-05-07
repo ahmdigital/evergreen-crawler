@@ -78,7 +78,7 @@ export type GraphResponse = {
 	}
 }
 
-export async function queryGraphQL(accessToken: string, repoCursor: string | null = null) : Promise<GraphQlQueryResponseData> {
+export async function queryGraphQL(organisation: string, accessToken: string, repoCursor: string | null) : Promise<GraphQlQueryResponseData> {
   
   const graphqlWithAuth = graphql.defaults({
     headers: {
@@ -93,7 +93,7 @@ export async function queryGraphQL(accessToken: string, repoCursor: string | nul
   // TODO: limit to default branch, current setup no working 
   response = graphqlWithAuth(
     `
-	query orgRepos($queryString: String!, $numOfPages: Int!, $repoCursor: String) {
+	query orgRepos($queryString: String!, $numOfPages: Int!, $repoCursor: String, $dependencyLimit: Int!) {
 		rateLimit{
 		   cost
 		   remaining
@@ -134,7 +134,7 @@ export async function queryGraphQL(accessToken: string, repoCursor: string | nul
 		  name
 		  stargazerCount
 		  updatedAt
-		   dependencyGraphManifests(withDependencies: true) {
+		   dependencyGraphManifests(withDependencies: true, first: $dependencyLimit) {
 			  totalCount
 			  nodes {
 				  filename
@@ -159,9 +159,10 @@ export async function queryGraphQL(accessToken: string, repoCursor: string | nul
    }
         `,
     {
-      queryString: "octokit",
+      queryString: organisation,
       numOfPages: 5,
-      repoCursor: repoCursor
+      repoCursor: repoCursor,
+	  dependencyLimit: 10
     }
   )
 

@@ -1,27 +1,11 @@
 import { Octokit, RestEndpointMethodTypes } from "@octokit/rest";
-import { getPackageManifest } from "query-registry";
-import { RequestCounter } from "./rate-limiting/request-counter";
 import { TokenBucket } from "./rate-limiting/token-bucket";
-import { graphql } from "@octokit/graphql";
-import type {
-	GraphQlQueryResponseData,
-	GraphqlResponseError
-} from "@octokit/graphql";
-import { sleep, getAccessToken } from "./utils";
-import { printHashBar, printSpacer } from "./ioFormatting";
+import { getAccessToken, loadConfig, writeFile } from "./utils";
 import { generateDependencyTree } from "./outputData";
-import { getDependenciesNpm, Repository, APIParameters, PackageRateLimiter, queryDependenyPyPI } from "./packageAPI";
+import { getDependenciesNpm, getDependenciesPyPI, Repository, APIParameters, PackageRateLimiter, queryDependenyPyPI } from "./packageAPI";
 import { DependencyGraphDependency, GraphResponse, RepoEdge, BranchManifest, UpperBranchManifest, queryGraphQL } from "./graphQLAPI"
 
-var Map = require("es6-map");
-
-// //Ratelimiter is a POJO that contains a TokenBuckets and RequestCounters for each API source.
-// export type RateLimiter = {
-// 	// Github: {
-// 	// 	tokenBucket: TokenBucket;
-// 	// 	reqCounter: RequestCounter;
-// 	// };
-// }
+//var Map = require("es6-map");
 
 //Declaring a type alias for representing a repository in order to avoid this octokit mess
 type OctokitRepository =
@@ -30,59 +14,39 @@ type OctokitRepository =
 // Defining the GitHub API client.
 let octokit: Octokit;
 
-// gets repos that have package.json, returns list of repo objects 
-function getPkgJSONRepos(response: GraphResponse) {
-	const PKG_JSON = "package.json";
+// returns list of repo objects 
+function getRepos(response: GraphResponse) {
 	const allRepos: RepoEdge[] = response?.organization?.repositories?.edges;
 	let filteredRepos: BranchManifest[] = []
 	for (const repo of allRepos) {
-		console.log(repo);
+		//console.log(repo);
 		const ref = repo.node.mainBranch ? repo.node.mainBranch : repo.node.masterBranch;
 		if (ref == null) {
 			continue
 		}
 
-		const depGraphManifests = ref.repository.dependencyGraphManifests;
-		const files: any[] = depGraphManifests.edges;
-
-		//This requires files to be sorted by depth, shallowest first
-		for (const file of files) {
-			const blobPath = file.node.blobPath;
-			if (blobPath.endsWith(PKG_JSON)) {
-				filteredRepos.push(ref)
-				break
-			}
-
-		}
+		filteredRepos.push(ref)
 	}
 	return filteredRepos
 }
 
-// Params: blobPath: name of blobPath string, deps: dependencies list from blobPath. 
-// returns object with { blob path: <file name eg. /blah/package.json>,  dependencies: <list of deps from blobpath file> }
 // get dependencies of a repo obj, used by function getAllRepoDeps(repoList)
 // returns object with repo name and list of blob paths ending with package.json and blob path's dependencies
 function getRepoDependencies(repo: BranchManifest) {
-	// add more extensions in the future
-	const extensions: string[] = ["package.json"];
-
+	const packageManagers = [
+		{ name: "NPM", extensions: ["package.json"] },
+		{ name: "PYPI", extensions: ["requirements.txt"] },
+	]
 
 	function blobPathDeps(subPath: string, blobPath: string, version: string, deps: DependencyGraphDependency[]) {
-		return {
-			subPath: subPath,
-			blobPath: blobPath,
-			version: version,
-			dependencies: deps
-		}
+		return { subPath: subPath, blobPath: blobPath, version: version, dependencies: deps }
 	}
 
 	let repoDepObj: {
-		manifest: UpperBranchManifest,
-		blobPathDepsList: ReturnType<typeof blobPathDeps>[]
-	} = {
-		manifest: repo.repository as UpperBranchManifest,
-		blobPathDepsList: []
-	}
+		manifest: UpperBranchManifest, packageMap: Map<string, ReturnType<typeof blobPathDeps>[]>
+	} = { manifest: repo.repository as UpperBranchManifest, packageMap: null }
+
+	repoDepObj.packageMap = new Map()
 
 	const depGraphManifests = repo.repository.dependencyGraphManifests
 	const files = depGraphManifests.edges
@@ -92,26 +56,32 @@ function getRepoDependencies(repo: BranchManifest) {
 		const blobPath = file.node.blobPath;
 		const subPath = depGraphManifests.nodes[index].filename
 		index += 1;
-		for (const ext of extensions) {
-			// check blobpath ends with extension 
-			if (blobPath.endsWith(ext)) {
-				console.log(blobPath + ", " + subPath)
-				const version = ""//file.node.version
-				const depCount = file.node.dependencies.totalCount
-				if (depCount > 0) {
-					const dependencies = file.node.dependencies.nodes
-					const blobPathDep = blobPathDeps(subPath, blobPath, version, dependencies)
-					repoDepObj.blobPathDepsList.push(blobPathDep)
-				}
-				else {
-					// currently includes package.json files with no dependencies
-					const blobPathDep = blobPathDeps(subPath, blobPath, version, [])
-					repoDepObj.blobPathDepsList.push(blobPathDep)
-				}
+		for (const packageManager of packageManagers) {			
+			for (const ext of packageManager.extensions) {
+				// check path ends with extension 
+				if (subPath.endsWith(ext)) {
+					console.log(blobPath + ", " + subPath)
+					const version = ""//file.node.version
+					const depCount = file.node.dependencies.totalCount
 
+					if(!repoDepObj.packageMap.has(packageManager.name)){
+						repoDepObj.packageMap.set(packageManager.name, [])
+					}
+
+					if (depCount > 0) {
+						const dependencies = file.node.dependencies.nodes
+						const blobPathDep = blobPathDeps(subPath, blobPath, version, dependencies)
+						repoDepObj.packageMap.get(packageManager.name).push(blobPathDep)
+					} else {
+						// currently includes package.json files with no dependencies
+						const blobPathDep = blobPathDeps(subPath, blobPath, version, [])
+						repoDepObj.packageMap.get(packageManager.name).push(blobPathDep)
+					}
+				}
 			}
 		}
 	}
+
 	return repoDepObj
 }
 
@@ -121,76 +91,106 @@ function getAllRepoDeps(repoList: BranchManifest[]) {
 	let all_dependencies: ReturnType<typeof getRepoDependencies>[] = []
 	for (const repo of repoList) {
 		const deps = getRepoDependencies(repo)
-		all_dependencies.push(deps)
+		if(deps.packageMap.size > 0){
+			all_dependencies.push(deps)
+		}
 	}
 	return all_dependencies
 }
 
-function mergeDependenciesLists(repos: Repository[]): string[] {
-	let deps = new Set<string>();
+function mergeDependenciesLists(managerRepos: Map<string, Repository[]>): Map<string, string[]> {
+	let deps: Map<string, Set<string>> = new Map()
 
-	for (const repo of repos) {
-		for (const [name, version] of repo.dependencies) {
-			deps.add(name);
+	for (const [packageManager, repos] of managerRepos) {
+		console.log(packageManager)
+		for(const repo of repos){
+			for (const [name, version] of repo.dependencies) {
+				console.log("\t" + name)
+				if(!deps.has(packageManager)){ deps.set(packageManager, new Set()) }
+				deps.get(packageManager).add(name);
+			}
 		}
 	}
 
-	return Array.from(deps.values());
+	let managerDeps: Map<string, string[]> = new Map()
+
+	for(const [key, value] of deps){
+		managerDeps.set(key, Array.from(value.values()))
+	}
+
+	return managerDeps
 }
 
 //Main function
 async function main() {
-	const accessToken = getAccessToken();
+	const accessToken = getAccessToken()
+	const config = loadConfig()
+
+	console.log("Configuration:")
+	console.log(config)
+	console.log(config.targetOrganisation)
 
 	const rateLimiter: PackageRateLimiter = {
 		npm: { tokenBucket: new TokenBucket(1000, APIParameters.npm.rateLimit, APIParameters.npm.intialTokens) },
 		pypi: { tokenBucket: new TokenBucket(1000, APIParameters.pypi.rateLimit, APIParameters.pypi.intialTokens) },
 	};
 
-	//TEST
-
-	console.log(await queryDependenyPyPI("black", rateLimiter))
-
-	return
-
 	const startTime = Date.now();
 
 	// ==== START: Extracting dependencies from Github graphql response === //
 
-	//TODO: make sure following loop can run concurrently
-	//let allDepPromises: Promise<Repository>[] = [];
-
-
-	const allDeps: Repository[] = [] //await Promise.all(allDepPromises);
+	const allDeps: Map<string, Repository[]> = new Map()
 
 	let repoCursor = null;
 	let hasNextPage = false;
 	do {
-		const response = await queryGraphQL(accessToken, repoCursor) as GraphResponse;
+		const response = await queryGraphQL(config.targetOrganisation, accessToken, repoCursor) as GraphResponse;
 
-		const repoList = getPkgJSONRepos(response as GraphResponse);
-		console.log(repoList);
+		for (const repo of response?.organization?.repositories?.edges) {
+			const ref = repo.node.mainBranch ? repo.node.mainBranch : repo.node.masterBranch;
+			if (ref == null) {
+				continue
+			}
+
+			const depGraphManifests = ref.repository.dependencyGraphManifests;
+			const files: any[] = depGraphManifests.edges;
+
+			console.log(ref.repository.name)
+
+			//This requires files to be sorted by depth, shallowest first
+			for (const file of files) {
+				const blobPath = file.node.blobPath;
+				console.log(blobPath)
+			}
+		}
+
+		const repoList = getRepos(response);
 		const allRepoDeps = getAllRepoDeps(repoList);
-		console.log(JSON.stringify(allRepoDeps, null, " "));
 
 		for (const repo of allRepoDeps) {
 			const name = repo.manifest.name
-			for (const subRepo of repo.blobPathDepsList) {
-				let deps: Map<string, string> = new Map();
 
-				for (const dep of subRepo.dependencies) {
-					deps.set(dep.packageName, dep.requirements)
+			for(const [packageManager, depList] of repo.packageMap){
+				for (const subRepo of depList) {
+					let deps: Map<string, string> = new Map();
+
+					for (const dep of subRepo.dependencies) {
+						deps.set(dep.packageName, dep.requirements)
+					}
+
+					let rep: Repository = {
+						name: name + "(" + subRepo.subPath + ")",
+						version: subRepo.version,
+						link: repo.manifest.url,
+						isArchived: repo.manifest.isArchived,
+						dependencies: deps
+					}
+
+					if(!allDeps.has(packageManager)){
+						allDeps.set(packageManager, [])
+					}
+					allDeps.get(packageManager).push(rep)
 				}
-
-				let rep: Repository = {
-					name: name + "(" + subRepo.subPath + ")",
-					version: subRepo.version,
-					link: repo.manifest.url,
-					isArchived: repo.manifest.isArchived,
-					dependencies: deps
-				}
-
-				allDeps.push(rep)
 			}
 		}
 
@@ -200,27 +200,38 @@ async function main() {
 		}
 	} while (hasNextPage)
 
-	// allDeps: list of dependencies to be given to npm 
-	const npmDeps = mergeDependenciesLists(allDeps);
+	// allDeps: list of dependencies to be given to package APIs
+	const packageDeps = mergeDependenciesLists(allDeps);
 
-	const depDataMap = await getDependenciesNpm(npmDeps, rateLimiter);
+	const npmDepDataMap = packageDeps.has("NPM") ? await getDependenciesNpm(packageDeps.get("NPM"), rateLimiter) : null;
+	console.log("Finished npm. Size: " + npmDepDataMap.size)
+	const pypiDepDataMap = packageDeps.has("PYPI") ? await getDependenciesPyPI(packageDeps.get("PYPI"), rateLimiter) : null;
+	console.log("Finished PyPI. Size: " + pypiDepDataMap.size)
 
 	//Wait for all requests to finish
 	console.log("Waiting for all requests to finish");
 	await Promise.all([
-		//rateLimiter.Github.tokenBucket.waitForShorterQueue(1000),
-		rateLimiter.npm.tokenBucket.waitForShorterQueue(1000),
+		//rateLimiter.Github.tokenBucket.waitForShorterQueue(100),
+		rateLimiter.npm.tokenBucket.waitForShorterQueue(100),
 	]);
 
-	//Print req counters report
+	//Print the total time
 	const endTime = Date.now();
-	console.log(`Total time ${endTime - startTime}`)
+	console.log("Total time: " + ((endTime - startTime) / 1000).toString())
 
-	//At this point the bucket queue will be empty, but there might still be some requests in flight.
-	await sleep(3000);
+	let jsonResult: string = ""
 
-	//printRateLimitInfo(startTime, endTime, rateLimiter);
-	console.log(JSON.stringify(generateDependencyTree(allDeps, depDataMap)));
+	jsonResult += "{"
+	jsonResult += "\"npm\": ["
+	jsonResult += !allDeps.has("NPM") ? "" : generateDependencyTree(allDeps.get("NPM"), npmDepDataMap)
+	jsonResult += "], "
+	jsonResult += "\"PyPI\": ["
+	jsonResult += !allDeps.has("PYPI") ? "" : generateDependencyTree(allDeps.get("PYPI"), pypiDepDataMap)
+	jsonResult += "]"
+	jsonResult += "}"
+
+	console.log(jsonResult)
+	writeFile("cachedData.json", jsonResult);
 }
 
 main();

@@ -90,10 +90,5 @@ export function generateDependencyTree(
 		});
 	}
 
-	console.log(depNameMap);
-	console.log(depData);
-
-	console.log(depDataToJson(depNameMap, depData));
-
-	return repos;
+	return depDataToJson(depNameMap, depData) + "," + JSON.stringify(repos);
 }
