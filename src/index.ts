@@ -1,25 +1,11 @@
 import { Octokit, RestEndpointMethodTypes } from "@octokit/rest";
-import { RequestCounter } from "./rate-limiting/request-counter";
 import { TokenBucket } from "./rate-limiting/token-bucket";
-import type {
-	GraphQlQueryResponseData,
-	GraphqlResponseError
-} from "@octokit/graphql";
-import { sleep, getAccessToken } from "./utils";
+import { getAccessToken, loadConfig, writeFile } from "./utils";
 import { generateDependencyTree } from "./outputData";
-import { getNpmDeps, Repository, RequestRate, PackageRateLimiter} from "./packageAPI";
-import {DependencyGraphDependency,GraphResponse, RepoEdge, BranchManifest, UpperBranchManifest, queryGraphQL} from "./graphQLAPI"
-import * as fs from "fs";
+import { getDependenciesNpm, getDependenciesPyPI, Repository, APIParameters, PackageRateLimiter, queryDependenyPyPI } from "./packageAPI";
+import { DependencyGraphDependency, GraphResponse, RepoEdge, BranchManifest, UpperBranchManifest, queryGraphQL } from "./graphQLAPI"
 
-var Map = require("es6-map");
-
-// //Ratelimiter is a POJO that contains a TokenBuckets and RequestCounters for each API source.
-// export type RateLimiter = {
-// 	// Github: {
-// 	// 	tokenBucket: TokenBucket;
-// 	// 	reqCounter: RequestCounter;
-// 	// };
-// }
+//var Map = require("es6-map");
 
 //Declaring a type alias for representing a repository in order to avoid this octokit mess
 type OctokitRepository =
@@ -28,69 +14,39 @@ type OctokitRepository =
 // Defining the GitHub API client.
 let octokit: Octokit;
 
-/**
- * gets repos that have package.json, returns list of repo objects
- * @param response  Graph Response from initial graphql
- * @returns
- */
-function getPkgJSONRepos(response: GraphResponse):BranchManifest[] {
-	const PKG_JSON = "package.json";
+// returns list of repo objects 
+function getRepos(response: GraphResponse) {
 	const allRepos: RepoEdge[] = response?.organization?.repositories?.edges;
 	let filteredRepos: BranchManifest[] = []
-	for(const repo of allRepos) {
-		console.log(repo);
+	for (const repo of allRepos) {
+		//console.log(repo);
 		const ref = repo.node.mainBranch ? repo.node.mainBranch : repo.node.masterBranch;
-		if(ref == null){
+		if (ref == null) {
 			continue
 		}
 
-		const depGraphManifests = ref.repository.dependencyGraphManifests;
-		const files: any[] = depGraphManifests.edges;
-
-		//This requires files to be sorted by depth, shallowest first
-		for (const file of files) {
-			const blobPath = file.node.blobPath;
-			if (blobPath.endsWith(PKG_JSON)) {
-				filteredRepos.push(ref)
-				break
-			}
-
-		}
+		filteredRepos.push(ref)
 	}
 	return filteredRepos
 }
 
-// Params: blobPath: name of blobPath string, deps: dependencies list from blobPath.
-// returns object with { blob path: <file name eg. /blah/package.json>,  dependencies: <list of deps from blobpath file> }
 // get dependencies of a repo obj, used by function getAllRepoDeps(repoList)
 // returns object with repo name and list of blob paths ending with package.json and blob path's dependencies
-
-/**
- *
- * @param repo
- * @returns
- */
 function getRepoDependencies(repo: BranchManifest) {
-	// add more extensions in the future
-	const extensions: string[] = ["package.json"];
-
+	const packageManagers = [
+		{ name: "NPM", extensions: ["package.json"] },
+		{ name: "PYPI", extensions: ["requirements.txt"] },
+	]
 
 	function blobPathDeps(subPath: string, blobPath: string, version: string, deps: DependencyGraphDependency[]) {
-		return {
-			subPath: subPath,
-			blobPath: blobPath,
-			version: version,
-			dependencies: deps
-		}
+		return { subPath: subPath, blobPath: blobPath, version: version, dependencies: deps }
 	}
 
 	let repoDepObj: {
-		manifest: UpperBranchManifest,
-		blobPathDepsList: ReturnType<typeof blobPathDeps>[]
-	} = {
-		manifest: repo.repository as UpperBranchManifest,
-		blobPathDepsList: []
-	}
+		manifest: UpperBranchManifest, packageMap: Map<string, ReturnType<typeof blobPathDeps>[]>
+	} = { manifest: repo.repository as UpperBranchManifest, packageMap: null }
+
+	repoDepObj.packageMap = new Map()
 
 	const depGraphManifests = repo.repository.dependencyGraphManifests
 	const files = depGraphManifests.edges
@@ -100,164 +56,182 @@ function getRepoDependencies(repo: BranchManifest) {
 		const blobPath = file.node.blobPath;
 		const subPath = depGraphManifests.nodes[index].filename
 		index += 1;
-		for (const ext of extensions) {
-			// check blobpath ends with extension
-			if (blobPath.endsWith(ext)) {
-				console.log(blobPath + ", " + subPath)
-				const version = ""//file.node.version
-				const depCount = file.node.dependencies.totalCount
-				if (depCount > 0){
-					const dependencies = file.node.dependencies.nodes
-					const blobPathDep = blobPathDeps(subPath, blobPath, version, dependencies)
-					repoDepObj.blobPathDepsList.push(blobPathDep)
-				}
-				else{
-					// currently includes package.json files with no dependencies
-					const blobPathDep = blobPathDeps(subPath, blobPath, version, [])
-					repoDepObj.blobPathDepsList.push(blobPathDep)
-				}
+		for (const packageManager of packageManagers) {			
+			for (const ext of packageManager.extensions) {
+				// check path ends with extension 
+				if (subPath.endsWith(ext)) {
+					console.log(blobPath + ", " + subPath)
+					const version = ""//file.node.version
+					const depCount = file.node.dependencies.totalCount
 
+					if(!repoDepObj.packageMap.has(packageManager.name)){
+						repoDepObj.packageMap.set(packageManager.name, [])
+					}
+
+					if (depCount > 0) {
+						const dependencies = file.node.dependencies.nodes
+						const blobPathDep = blobPathDeps(subPath, blobPath, version, dependencies)
+						repoDepObj.packageMap.get(packageManager.name).push(blobPathDep)
+					} else {
+						// currently includes package.json files with no dependencies
+						const blobPathDep = blobPathDeps(subPath, blobPath, version, [])
+						repoDepObj.packageMap.get(packageManager.name).push(blobPathDep)
+					}
+				}
 			}
 		}
 	}
+
 	return repoDepObj
 }
 
-
-/**
- * get dependencies of all repos in repoList,
- * repoList generated by getPkgJSONRepos()
- * @param repoList: list of BranchManifest objects
- * – Branch Manifest part of graph response representing a repository:UpperBranchManifest with a nested DependencyGraphManifests Object
- * @returns
- */
-function getAllRepoDeps(repoList: BranchManifest[]){
+// get dependencies of all repos in repoList, repolist: list of repo objects
+// repoList generated by getPkgJSONRepos()
+function getAllRepoDeps(repoList: BranchManifest[]) {
 	let all_dependencies: ReturnType<typeof getRepoDependencies>[] = []
-	for (const repo of repoList){
+	for (const repo of repoList) {
 		const deps = getRepoDependencies(repo)
-		all_dependencies.push(deps)
+		if(deps.packageMap.size > 0){
+			all_dependencies.push(deps)
+		}
 	}
 	return all_dependencies
 }
 
-/**
- * Gets all repos and iterates through dependencies in each repo to get an array of all dependencies names,
- *
- * @param repos: List of Repository Objects
- * @returns array of names of all dependencies, all values in the array are unique
- */
-function mergeDependenciesLists(repos: Repository[]): string[] {
-	let deps = new Set<string>(); // Set enables us to only keep repo name unique values
+function mergeDependenciesLists(managerRepos: Map<string, Repository[]>): Map<string, string[]> {
+	let deps: Map<string, Set<string>> = new Map()
 
-	for (const repo of repos) {
-		for (const [name, version] of repo.dependencies) {
-			deps.add(name);
+	for (const [packageManager, repos] of managerRepos) {
+		console.log(packageManager)
+		for(const repo of repos){
+			for (const [name, version] of repo.dependencies) {
+				console.log("\t" + name)
+				if(!deps.has(packageManager)){ deps.set(packageManager, new Set()) }
+				deps.get(packageManager).add(name);
+			}
 		}
 	}
 
-	return Array.from(deps.values());
-}
+	let managerDeps: Map<string, string[]> = new Map()
 
-async function scrapeOrganisation(organization: string): Promise<Repository[]> {
-	const accessToken = getAccessToken();
-	const allDeps: Repository[] = [] //await Promise.all(allDepPromises);
+	for(const [key, value] of deps){
+		managerDeps.set(key, Array.from(value.values()))
+	}
 
-	let repoCursor = null;
-	let hasNextPage = false;
-
-
-	// Making initial Request to GraphQL using query from graphQLAPI.ts and paginate (requesting every 5 repos)
-	// to get all repo and their dependencies
-	do{
-		const response = await queryGraphQL(accessToken, repoCursor) as GraphResponse;
-		if (response.hasOwnProperty("errors")) {
-			throw new Error(response?.errors[0].message)
-		}
-		const repoList = getPkgJSONRepos(response as GraphResponse);
-		console.log(repoList);
-		const allRepoDeps = getAllRepoDeps(repoList);
-		console.log(JSON.stringify(allRepoDeps, null, " "));
-
-		for(const repo of allRepoDeps){
-			const name = repo.manifest.name
-			for(const subRepo of repo.blobPathDepsList){
-				let deps: Map<string, string> = new Map();
-
-				for(const dep of subRepo.dependencies){
-					deps.set(dep.packageName, dep.requirements)
-				}
-
-				let rep: Repository = {
-					name: name + "(" + subRepo.subPath + ")",
-					version: subRepo.version,
-					link: repo.manifest.url,
-					isArchived: repo.manifest.isArchived,
-					dependencies: deps
-				}
-
-				allDeps.push(rep)
-			}
-		}
-
-		hasNextPage = response?.organization?.repositories?.pageInfo?.hasNextPage
-		if (hasNextPage){
-			repoCursor = response?.organization?.repositories?.pageInfo?.endCursor
-		}
-	} while (hasNextPage)
-	return allDeps
+	return managerDeps
 }
 
 //Main function
 async function main() {
+	const accessToken = getAccessToken()
+	const config = loadConfig()
+
+	console.log("Configuration:")
+	console.log(config)
+	console.log(config.targetOrganisation)
 
 	const rateLimiter: PackageRateLimiter = {
-		// Github: {
-		// 	// Github api allows 5000 reqs per hour. 5000/3600 = 1.388 reqs per second.
-		// 	tokenBucket: new TokenBucket(100, 1.388, 0),
-		// 	reqCounter: new RequestCounter(10000, "GitHub"),
-		// },
-		npm: {
-			tokenBucket: new TokenBucket(10000, RequestRate.npm, 1000),
-		},
+		npm: { tokenBucket: new TokenBucket(1000, APIParameters.npm.rateLimit, APIParameters.npm.intialTokens) },
+		pypi: { tokenBucket: new TokenBucket(1000, APIParameters.pypi.rateLimit, APIParameters.pypi.intialTokens) },
 	};
 
 	const startTime = Date.now();
 
 	// ==== START: Extracting dependencies from Github graphql response === //
 
-	//TODO: make sure following loop can run concurrently
-	//let allDepPromises: Promise<Repository>[] = [];
+	const allDeps: Map<string, Repository[]> = new Map()
 
-	const allDeps: Repository[] = await scrapeOrganisation(null) //await Promise.all(allDepPromises);
+	let repoCursor = null;
+	let hasNextPage = false;
+	do {
+		const response = await queryGraphQL(config.targetOrganisation, accessToken, repoCursor) as GraphResponse;
 
+		for (const repo of response?.organization?.repositories?.edges) {
+			const ref = repo.node.mainBranch ? repo.node.mainBranch : repo.node.masterBranch;
+			if (ref == null) {
+				continue
+			}
 
-	// allDeps: prepare all dependencies so that you can perform batch alls to NMP
-	//  mergeDependenciesLists(allDeps) - each repo get their name add to set, set of their dependencies
-	const depDataMap = await getNpmDeps(mergeDependenciesLists(allDeps), rateLimiter);
+			const depGraphManifests = ref.repository.dependencyGraphManifests;
+			const files: any[] = depGraphManifests.edges;
+
+			console.log(ref.repository.name)
+
+			//This requires files to be sorted by depth, shallowest first
+			for (const file of files) {
+				const blobPath = file.node.blobPath;
+				console.log(blobPath)
+			}
+		}
+
+		const repoList = getRepos(response);
+		const allRepoDeps = getAllRepoDeps(repoList);
+
+		for (const repo of allRepoDeps) {
+			const name = repo.manifest.name
+
+			for(const [packageManager, depList] of repo.packageMap){
+				for (const subRepo of depList) {
+					let deps: Map<string, string> = new Map();
+
+					for (const dep of subRepo.dependencies) {
+						deps.set(dep.packageName, dep.requirements)
+					}
+
+					let rep: Repository = {
+						name: name + "(" + subRepo.subPath + ")",
+						version: subRepo.version,
+						link: repo.manifest.url,
+						isArchived: repo.manifest.isArchived,
+						dependencies: deps
+					}
+
+					if(!allDeps.has(packageManager)){
+						allDeps.set(packageManager, [])
+					}
+					allDeps.get(packageManager).push(rep)
+				}
+			}
+		}
+
+		hasNextPage = response?.organization?.repositories?.pageInfo?.hasNextPage
+		if (hasNextPage) {
+			repoCursor = response?.organization?.repositories?.pageInfo?.endCursor
+		}
+	} while (hasNextPage)
+
+	// allDeps: list of dependencies to be given to package APIs
+	const packageDeps = mergeDependenciesLists(allDeps);
+
+	const npmDepDataMap = packageDeps.has("NPM") ? await getDependenciesNpm(packageDeps.get("NPM"), rateLimiter) : null;
+	console.log("Finished npm. Size: " + npmDepDataMap.size)
+	const pypiDepDataMap = packageDeps.has("PYPI") ? await getDependenciesPyPI(packageDeps.get("PYPI"), rateLimiter) : null;
+	console.log("Finished PyPI. Size: " + pypiDepDataMap.size)
 
 	//Wait for all requests to finish
 	console.log("Waiting for all requests to finish");
 	await Promise.all([
-		//rateLimiter.Github.tokenBucket.waitForShorterQueue(1000),
-		rateLimiter.npm.tokenBucket.waitForShorterQueue(1000),
+		//rateLimiter.Github.tokenBucket.waitForShorterQueue(100),
+		rateLimiter.npm.tokenBucket.waitForShorterQueue(100),
 	]);
 
-	//Print req counters report
+	//Print the total time
 	const endTime = Date.now();
-	console.log(`Total time ${(endTime-startTime)/1000}`)
+	console.log("Total time: " + ((endTime - startTime) / 1000).toString())
 
-	//At this point the bucket queue will be empty, but there might still be some requests in flight.
-	await sleep(3000);
+	let jsonResult: string = ""
 
-	//printRateLimitInfo(startTime, endTime, rateLimiter);
-	const responseData = JSON.stringify(generateDependencyTree(allDeps, depDataMap))
-	console.log(responseData);
+	jsonResult += "{"
+	jsonResult += "\"npm\": ["
+	jsonResult += !allDeps.has("NPM") ? "" : generateDependencyTree(allDeps.get("NPM"), npmDepDataMap)
+	jsonResult += "], "
+	jsonResult += "\"PyPI\": ["
+	jsonResult += !allDeps.has("PYPI") ? "" : generateDependencyTree(allDeps.get("PYPI"), pypiDepDataMap)
+	jsonResult += "]"
+	jsonResult += "}"
 
-	// write the data required by the frontend to a file
-	fs.writeFile("response.json", responseData , err => {
-		if (err) {
-			console.error(err);
-		  }});
+	console.log(jsonResult)
+	writeFile("cachedData.json", jsonResult);
 }
 
 main();
