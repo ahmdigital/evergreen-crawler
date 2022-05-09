@@ -11,7 +11,7 @@ export const APIParameters = {
 	},
 	pypi: {
 		// PyPI has no set rate limit, but says to "[t]ry not to make a lot of requests (thousands) in a short amount
-		// of time (minutes)", and "it’s preferred to make requests in serial over a longer amount of time if 
+		// of time (minutes)", and "it’s preferred to make requests in serial over a longer amount of time if
 		// possible", so we'll keep it at 1000 a minute for now.
 		rateLimit: 1000 /60,
 		intialTokens: 1
@@ -115,7 +115,7 @@ export function greaterThanPythonPackageVersion(a: PythonPackageVersion, b: Pyth
 }
 
 //Gets the information for a single pip dependecy from an external service, PyPI.
-export async function queryDependenyPyPI(dependency: string, rateLimiter: PackageRateLimiter) {
+export async function queryDependencyPyPI(dependency: string, rateLimiter: PackageRateLimiter) {
 	await rateLimiter.pypi.tokenBucket.waitForTokens(1)
 
 	//https://warehouse.pypa.io/api-reference/, they suggest that our user agent should mention who we are
@@ -158,7 +158,7 @@ export async function getDependenciesPyPI(dependencies: string[], rateLimiter: P
 	let depMap: Map<string, { version: string }> = new Map()
 
 	const depList = await Promise.all(
-		dependencies.map((dependency) => queryDependenyPyPI(dependency, rateLimiter))
+		dependencies.map((dependency) => queryDependencyPyPI(dependency, rateLimiter))
 	);
 
 	for (const dependency of depList) {

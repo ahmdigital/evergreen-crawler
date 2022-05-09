@@ -2,8 +2,8 @@ import { Octokit, RestEndpointMethodTypes } from "@octokit/rest";
 import { TokenBucket } from "./rate-limiting/token-bucket";
 import { getAccessToken, loadConfig, writeFile } from "./utils";
 import { generateDependencyTree } from "./outputData";
-import { getDependenciesNpm, getDependenciesPyPI, Repository, APIParameters, PackageRateLimiter, queryDependenyPyPI } from "./packageAPI";
-import { DependencyGraphDependency, GraphResponse, RepoEdge, BranchManifest, UpperBranchManifest, queryGraphQL } from "./graphQLAPI"
+import { getDependenciesNpm, getDependenciesPyPI, Repository, APIParameters, PackageRateLimiter } from "./packageAPI";
+import { DependencyGraphDependency, GraphResponse, OrgRepos, RepoEdge, BranchManifest, UpperBranchManifest, queryDependencies, queryRepositories } from "./graphQLAPI"
 
 //var Map = require("es6-map");
 
@@ -14,7 +14,7 @@ type OctokitRepository =
 // Defining the GitHub API client.
 let octokit: Octokit;
 
-// returns list of repo objects 
+// returns list of repo objects
 function getRepos(response: GraphResponse) {
 	const allRepos: RepoEdge[] = response?.organization?.repositories?.edges;
 	let filteredRepos: BranchManifest[] = []
@@ -56,9 +56,9 @@ function getRepoDependencies(repo: BranchManifest) {
 		const blobPath = file.node.blobPath;
 		const subPath = depGraphManifests.nodes[index].filename
 		index += 1;
-		for (const packageManager of packageManagers) {			
+		for (const packageManager of packageManagers) {
 			for (const ext of packageManager.extensions) {
-				// check path ends with extension 
+				// check path ends with extension
 				if (subPath.endsWith(ext)) {
 					console.log(blobPath + ", " + subPath)
 					const version = ""//file.node.version
@@ -102,10 +102,10 @@ function mergeDependenciesLists(managerRepos: Map<string, Repository[]>): Map<st
 	let deps: Map<string, Set<string>> = new Map()
 
 	for (const [packageManager, repos] of managerRepos) {
-		console.log(packageManager)
+		//console.log(packageManager)
 		for(const repo of repos){
 			for (const [name, version] of repo.dependencies) {
-				console.log("\t" + name)
+				//console.log("\t" + name)
 				if(!deps.has(packageManager)){ deps.set(packageManager, new Set()) }
 				deps.get(packageManager).add(name);
 			}
@@ -121,31 +121,41 @@ function mergeDependenciesLists(managerRepos: Map<string, Repository[]>): Map<st
 	return managerDeps
 }
 
-//Main function
-async function main() {
-	const accessToken = getAccessToken()
-	const config = loadConfig()
+async function scrapeOrganisation(config: ReturnType<typeof loadConfig>, accessToken: string){
+	let allDeps: Map<string, Repository[]> = new Map()
 
-	console.log("Configuration:")
-	console.log(config)
-	console.log(config.targetOrganisation)
+	let repoCursors: string[] = []
 
-	const rateLimiter: PackageRateLimiter = {
-		npm: { tokenBucket: new TokenBucket(1000, APIParameters.npm.rateLimit, APIParameters.npm.intialTokens) },
-		pypi: { tokenBucket: new TokenBucket(1000, APIParameters.pypi.rateLimit, APIParameters.pypi.intialTokens) },
-	};
-
-	const startTime = Date.now();
-
-	// ==== START: Extracting dependencies from Github graphql response === //
-
-	const allDeps: Map<string, Repository[]> = new Map()
-
-	let repoCursor = null;
 	let hasNextPage = false;
-	do {
-		const response = await queryGraphQL(config.targetOrganisation, accessToken, repoCursor) as GraphResponse;
+	let repoCursor = null;
+	do{
+		const response = await queryRepositories(config.targetOrganisation, null) as OrgRepos
 
+		for (const repo of response.organization.repositories.edges) {
+			repoCursors.push(repo.cursor)
+		}
+
+		hasNextPage = response?.organization?.repositories?.pageInfo?.hasNextPage
+		if (hasNextPage) {
+			repoCursor = response?.organization?.repositories?.pageInfo?.endCursor
+		}
+
+	} while(hasNextPage)
+	// overwrite the first value to null
+	repoCursors[0] = null
+	repoCursor = null;
+	hasNextPage = false;
+
+	let responses: Promise<GraphResponse>[] = []
+	const numOfPages = 3
+	for (let curCursor = 0; curCursor < repoCursors.length; curCursor+=numOfPages){
+		responses.push(queryDependencies(config.targetOrganisation, numOfPages, repoCursors[curCursor]) as Promise<GraphResponse>)
+	}
+	console.log("Fetched all repositories cursors");
+	await Promise.all(responses);
+
+	for(const responsePromise of responses){
+		const response = await responsePromise
 		for (const repo of response?.organization?.repositories?.edges) {
 			const ref = repo.node.mainBranch ? repo.node.mainBranch : repo.node.masterBranch;
 			if (ref == null) {
@@ -194,19 +204,42 @@ async function main() {
 			}
 		}
 
-		hasNextPage = response?.organization?.repositories?.pageInfo?.hasNextPage
-		if (hasNextPage) {
-			repoCursor = response?.organization?.repositories?.pageInfo?.endCursor
-		}
-	} while (hasNextPage)
+		// hasNextPage = response?.organization?.repositories?.pageInfo?.hasNextPage
+		// if (hasNextPage) {
+		// 	repoCursor = response?.organization?.repositories?.pageInfo?.endCursor
+		// }
+	}
+
+	return allDeps
+}
+
+//Main function
+async function main() {
+	const accessToken = getAccessToken()
+	const config = loadConfig()
+
+	console.log("Configuration:")
+	console.log(config)
+	console.log(config.targetOrganisation)
+
+	const rateLimiter: PackageRateLimiter = {
+		npm: { tokenBucket: new TokenBucket(1000, APIParameters.npm.rateLimit, APIParameters.npm.intialTokens) },
+		pypi: { tokenBucket: new TokenBucket(1000, APIParameters.pypi.rateLimit, APIParameters.pypi.intialTokens) },
+	};
+
+	const startTime = Date.now();
+
+	// ==== START: Extracting dependencies from Github graphql response === //
+
+	const allDeps = await scrapeOrganisation(config, accessToken)
 
 	// allDeps: list of dependencies to be given to package APIs
 	const packageDeps = mergeDependenciesLists(allDeps);
 
 	const npmDepDataMap = packageDeps.has("NPM") ? await getDependenciesNpm(packageDeps.get("NPM"), rateLimiter) : null;
-	console.log("Finished npm. Size: " + npmDepDataMap.size)
+	console.log("Finished npm. Size: " + npmDepDataMap?.size)
 	const pypiDepDataMap = packageDeps.has("PYPI") ? await getDependenciesPyPI(packageDeps.get("PYPI"), rateLimiter) : null;
-	console.log("Finished PyPI. Size: " + pypiDepDataMap.size)
+	console.log("Finished PyPI. Size: " + pypiDepDataMap?.size)
 
 	//Wait for all requests to finish
 	console.log("Waiting for all requests to finish");
@@ -230,7 +263,6 @@ async function main() {
 	jsonResult += "]"
 	jsonResult += "}"
 
-	console.log(jsonResult)
 	writeFile("cachedData.json", jsonResult);
 }
 
