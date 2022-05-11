@@ -56,7 +56,8 @@ function getRepoDependencies(repo: BranchManifest) {
 			for (const ext of packageManager.extensions) {
 				// check path ends with extension
 				if (subPath.endsWith(ext)) {
-					console.log(blobPath + ", " + subPath)
+					const subPathName = subPath.replace(ext, "")
+					console.log(blobPath + ", " + subPathName + ext)
 					const version = ""//file.node.version
 					const depCount = file.node.dependencies.totalCount
 
@@ -66,11 +67,11 @@ function getRepoDependencies(repo: BranchManifest) {
 
 					if (depCount > 0) {
 						const dependencies = file.node.dependencies.nodes
-						const blobPathDep = blobPathDeps(subPath, blobPath, version, dependencies)
+						const blobPathDep = blobPathDeps(subPathName, blobPath, version, dependencies)
 						repoDepObj.packageMap.get(packageManager.name).push(blobPathDep)
 					} else {
 						// currently includes package.json files with no dependencies
-						const blobPathDep = blobPathDeps(subPath, blobPath, version, [])
+						const blobPathDep = blobPathDeps(subPathName, blobPath, version, [])
 						repoDepObj.packageMap.get(packageManager.name).push(blobPathDep)
 					}
 				}
@@ -143,12 +144,17 @@ async function scrapeOrganisation(config: ReturnType<typeof loadConfig>, accessT
 	hasNextPage = false;
 
 	let responses: Promise<GraphResponse>[] = []
-	const numOfPages = 3
+	const numOfPages = 1
 	for (let curCursor = 0; curCursor < repoCursors.length; curCursor+=numOfPages){
-		responses.push(queryDependencies(config.targetOrganisation, numOfPages, repoCursors[curCursor]) as Promise<GraphResponse>)
+		responses.push(await queryDependencies(config.targetOrganisation, numOfPages, repoCursors[curCursor]) as Promise<GraphResponse>)
 	}
-	console.log("Fetched all repositories cursors");
-	await Promise.all(responses);
+	console.log("Fetched all cursors for the organisation")
+	await Promise.all(responses).catch(function(err) {
+		console.log("Failed to get information for a repository!")
+		console.log(err.message)
+		process.exit(1)
+	})
+	console.log("Received all repository information")
 
 	for(const responsePromise of responses){
 		const response = await responsePromise
@@ -185,7 +191,7 @@ async function scrapeOrganisation(config: ReturnType<typeof loadConfig>, accessT
 					}
 
 					let rep: Repository = {
-						name: name + "(" + subRepo.subPath + ")",
+						name: name + (subRepo.subPath == "" ? "" : "(" + subRepo.subPath + ")"),
 						version: subRepo.version,
 						link: repo.manifest.url,
 						isArchived: repo.manifest.isArchived,
