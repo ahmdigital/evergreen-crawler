@@ -7,13 +7,13 @@ import * as inquier from "inquirer";
  */
 export function getAccessToken(): string {
 	try {
-		return fs.readFileSync(".env").toString().trim();
+		return fs.readFileSync("./.env").toString().trim();
 	} catch (e) {
 		throw new Error("Could not read token from .env file")
 	}
 }
 
-type Configuration = {
+export type Configuration = {
 	targetOrganisation: string
 }
 

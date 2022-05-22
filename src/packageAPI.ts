@@ -136,7 +136,7 @@ export async function queryDependencyPyPI(dependency: string, rateLimiter: Packa
 
 	//https://warehouse.pypa.io/api-reference/, they suggest that our user agent should mention who we are
 	const response = await fetch("https://pypi.org/pypi/" + dependency + "/json")
-	const data = await response.json() as { info: { version }, releases }
+	const data = await response.json() as { info: { version : any}, releases : any }
 
 	let bestVersion: string = "0"
 	let bestVersionObject: PythonPackageVersion = {epoch: 0, first: 0, rest: [], isPrerelease: true}
@@ -168,15 +168,15 @@ export async function queryDependencyRubyGems(dependency: string, rateLimiter: P
 //Calls the given API for all dependencies in the given list
 async function getDependencies(dependencies: string[], rateLimiter: PackageRateLimiter, queryFunc: any) {
 		let depMap: Map<string, { version: string }> = new Map()
-	
+
 		const depList = await Promise.all(
 			dependencies.map((dependency) => queryFunc(dependency, rateLimiter))
 		);
-	
+
 		for (const dependency of depList) {
 			depMap.set(dependency.name, dependency.data)
 		}
-	
+
 		return depMap
 	}
 

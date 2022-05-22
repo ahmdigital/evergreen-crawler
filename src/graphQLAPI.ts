@@ -160,7 +160,7 @@ export async function queryGraphQL(query: string, param: any) : Promise<GraphQlQ
   		return queryGraphQL(query, param)
 
 	}
-export async function queryDependencies(organisation: string, numOfPages, repoCursor: string | null) : Promise<GraphQlQueryResponseData> {
+export async function queryDependencies(organisation: string, numOfPages: number, repoCursor: string | null) : Promise<GraphQlQueryResponseData> {
 
   // refer to this on how to query different branches/ref,
   // https://stackoverflow.com/questions/51504760/how-to-get-all-repos-that-contain-a-certain-branch-on-githubs-graphql-api

@@ -1,18 +1,9 @@
 import { Octokit, RestEndpointMethodTypes } from "@octokit/rest";
 import { TokenBucket } from "./rate-limiting/token-bucket";
-import { getAccessToken, loadConfig, writeFile } from "./utils";
+import { getAccessToken, loadConfig, writeFile, Configuration } from "./utils";
 import { generateDependencyTree } from "./outputData";
 import { getDependenciesNpm, getDependenciesPyPI, Repository, APIParameters, PackageRateLimiter, getDependenciesRubyGems, packageManagerFiles } from "./packageAPI";
 import { DependencyGraphDependency, GraphResponse, OrgRepos, RepoEdge, BranchManifest, UpperBranchManifest, queryDependencies, queryRepositories } from "./graphQLAPI"
-
-//var Map = require("es6-map");
-
-//Declaring a type alias for representing a repository in order to avoid this octokit mess
-type OctokitRepository =
-	RestEndpointMethodTypes["repos"]["listForOrg"]["response"]["data"][0];
-
-// Defining the GitHub API client.
-let octokit: Octokit;
 
 // returns list of repo objects
 function getRepos(response: GraphResponse) {
@@ -40,9 +31,9 @@ function getRepoDependencies(repo: BranchManifest) {
 
 	let repoDepObj: {
 		manifest: UpperBranchManifest, packageMap: Map<string, ReturnType<typeof blobPathDeps>[]>
-	} = { manifest: repo.repository as UpperBranchManifest, packageMap: null }
+	} = { manifest: repo.repository as UpperBranchManifest, packageMap: new Map() }
 
-	repoDepObj.packageMap = new Map()
+	// repoDepObj.packageMap = new Map()
 
 	const depGraphManifests = repo.repository.dependencyGraphManifests
 	const files = depGraphManifests.edges
@@ -68,11 +59,11 @@ function getRepoDependencies(repo: BranchManifest) {
 					if (depCount > 0) {
 						const dependencies = file.node.dependencies.nodes
 						const blobPathDep = blobPathDeps(subPathName, blobPath, version, dependencies)
-						repoDepObj.packageMap.get(packageManager.name).push(blobPathDep)
+						repoDepObj.packageMap.get(packageManager.name)?.push(blobPathDep)
 					} else {
 						// currently includes package.json files with no dependencies
 						const blobPathDep = blobPathDeps(subPathName, blobPath, version, [])
-						repoDepObj.packageMap.get(packageManager.name).push(blobPathDep)
+						repoDepObj.packageMap.get(packageManager.name)?.push(blobPathDep)
 					}
 				}
 			}
@@ -101,10 +92,10 @@ function mergeDependenciesLists(managerRepos: Map<string, Repository[]>): Map<st
 	for (const [packageManager, repos] of managerRepos) {
 		//console.log(packageManager)
 		for(const repo of repos){
-			for (const [name, version] of repo.dependencies) {
+			for (const [name] of repo.dependencies) {
 				//console.log("\t" + name)
 				if(!deps.has(packageManager)){ deps.set(packageManager, new Set()) }
-				deps.get(packageManager).add(name);
+				deps.get(packageManager)?.add(name);
 			}
 		}
 	}
@@ -121,7 +112,7 @@ function mergeDependenciesLists(managerRepos: Map<string, Repository[]>): Map<st
 async function scrapeOrganisation(config: ReturnType<typeof loadConfig>, accessToken: string){
 	let allDeps: Map<string, Repository[]> = new Map()
 
-	let repoCursors: string[] = []
+	let repoCursors: (string | null)[] = []
 
 	let hasNextPage = false;
 	let repoCursor = null;
@@ -201,7 +192,7 @@ async function scrapeOrganisation(config: ReturnType<typeof loadConfig>, accessT
 					if(!allDeps.has(packageManager)){
 						allDeps.set(packageManager, [])
 					}
-					allDeps.get(packageManager).push(rep)
+					allDeps.get(packageManager)?.push(rep)
 				}
 			}
 		}
@@ -215,11 +206,7 @@ async function scrapeOrganisation(config: ReturnType<typeof loadConfig>, accessT
 	return allDeps
 }
 
-//Main function
-async function main() {
-	const accessToken = getAccessToken()
-	const config = loadConfig()
-
+export async function getJsonStructure(accessToken: string, config: Configuration){
 	console.log("Configuration:")
 	console.log(config)
 	console.log(config.targetOrganisation)
@@ -240,9 +227,9 @@ async function main() {
 	const packageDeps = mergeDependenciesLists(allDeps);
 
 	let depDataMap: Map<string, Map<string, {version: string}>> = new Map()
-	if(packageDeps.has("NPM")){ depDataMap.set("NPM", await getDependenciesNpm(packageDeps.get("NPM"), rateLimiter)) }
-	if(packageDeps.has("PYPI")){ depDataMap.set("PYPI", await getDependenciesPyPI(packageDeps.get("PYPI"), rateLimiter)) }
-	if(packageDeps.has("RUBYGEMS")){ depDataMap.set("RUBYGEMS", await getDependenciesRubyGems(packageDeps.get("RUBYGEMS"), rateLimiter)) }
+	if(packageDeps.has("NPM")){ depDataMap.set("NPM", await getDependenciesNpm(packageDeps.get("NPM") as string[], rateLimiter)) }
+	if(packageDeps.has("PYPI")){ depDataMap.set("PYPI", await getDependenciesPyPI(packageDeps.get("PYPI") as string[], rateLimiter)) }
+	if(packageDeps.has("RUBYGEMS")){ depDataMap.set("RUBYGEMS", await getDependenciesRubyGems(packageDeps.get("RUBYGEMS") as string[], rateLimiter)) }
 
 	//Wait for all requests to finish
 	console.log("Waiting for all requests to finish");
@@ -259,17 +246,24 @@ async function main() {
 
 	jsonResult += "{"
 	jsonResult += "\"npm\": ["
-	jsonResult += !allDeps.has("NPM") ? "" : generateDependencyTree(allDeps.get("NPM"), depDataMap.get("NPM"))
+	jsonResult += !allDeps.has("NPM") ? "" : generateDependencyTree(allDeps.get("NPM") as Repository[], depDataMap.get("NPM") as any)
 	jsonResult += "], "
 	jsonResult += "\"PyPI\": ["
-	jsonResult += !allDeps.has("PYPI") ? "" : generateDependencyTree(allDeps.get("PYPI"), depDataMap.get("PYPI"))
+	jsonResult += !allDeps.has("PYPI") ? "" : generateDependencyTree(allDeps.get("PYPI") as Repository[], depDataMap.get("PYPI") as any)
 	jsonResult += "],"
 	jsonResult += "\"RubyGems\": ["
-	jsonResult += !allDeps.has("RUBYGEMS") ? "" : generateDependencyTree(allDeps.get("RUBYGEMS"), depDataMap.get("RUBYGEMS"))
+	jsonResult += !allDeps.has("RUBYGEMS") ? "" : generateDependencyTree(allDeps.get("RUBYGEMS") as Repository[], depDataMap.get("RUBYGEMS") as any)
 	jsonResult += "]"
 	jsonResult += "}"
 
-	writeFile("cachedData.json", jsonResult);
+	return jsonResult
+}
+
+//Main function
+async function main() {
+	const accessToken = getAccessToken()
+	const config = loadConfig()
+	writeFile("cachedData.json", await getJsonStructure(accessToken, config));
 }
 
 main();
