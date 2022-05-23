@@ -206,7 +206,7 @@ async function scrapeOrganisation(config: ReturnType<typeof loadConfig>, accessT
 	return allDeps
 }
 
-export async function getJsonStructure(accessToken: string, config: Configuration){
+export async function getJsonStructure(accessToken: string, config: Configuration, toUse: string[] | null = null){
 	console.log("Configuration:")
 	console.log(config)
 	console.log(config.targetOrganisation)
@@ -216,6 +216,10 @@ export async function getJsonStructure(accessToken: string, config: Configuratio
 		pypi: { tokenBucket: new TokenBucket(1000, APIParameters.pypi.rateLimit, APIParameters.pypi.intialTokens) },
 		rubygems: { tokenBucket: new TokenBucket(1000, APIParameters.rubygems.rateLimit, APIParameters.rubygems.intialTokens) },
 	};
+
+	if(toUse == null){
+		toUse = ["NPM", "PYPI", "RUBYGEMS"]
+	}
 
 	const startTime = Date.now();
 
@@ -227,9 +231,9 @@ export async function getJsonStructure(accessToken: string, config: Configuratio
 	const packageDeps = mergeDependenciesLists(allDeps);
 
 	let depDataMap: Map<string, Map<string, {version: string}>> = new Map()
-	if(packageDeps.has("NPM")){ depDataMap.set("NPM", await getDependenciesNpm(packageDeps.get("NPM") as string[], rateLimiter)) }
-	if(packageDeps.has("PYPI")){ depDataMap.set("PYPI", await getDependenciesPyPI(packageDeps.get("PYPI") as string[], rateLimiter)) }
-	if(packageDeps.has("RUBYGEMS")){ depDataMap.set("RUBYGEMS", await getDependenciesRubyGems(packageDeps.get("RUBYGEMS") as string[], rateLimiter)) }
+	if(toUse.includes("NPM") && packageDeps.has("NPM")){ depDataMap.set("NPM", await getDependenciesNpm(packageDeps.get("NPM") as string[], rateLimiter)) }
+	if(toUse.includes("PYPI") && packageDeps.has("PYPI")){ depDataMap.set("PYPI", await getDependenciesPyPI(packageDeps.get("PYPI") as string[], rateLimiter)) }
+	if(toUse.includes("RUBYGEMS") && packageDeps.has("RUBYGEMS")){ depDataMap.set("RUBYGEMS", await getDependenciesRubyGems(packageDeps.get("RUBYGEMS") as string[], rateLimiter)) }
 
 	//Wait for all requests to finish
 	console.log("Waiting for all requests to finish");
@@ -246,13 +250,13 @@ export async function getJsonStructure(accessToken: string, config: Configuratio
 
 	jsonResult += "{"
 	jsonResult += "\"npm\": ["
-	jsonResult += !allDeps.has("NPM") ? "" : generateDependencyTree(allDeps.get("NPM") as Repository[], depDataMap.get("NPM") as any)
+	jsonResult += !(toUse.includes("NPM") && allDeps.has("NPM")) ? "" : generateDependencyTree(allDeps.get("NPM") as Repository[], depDataMap.get("NPM") as any)
 	jsonResult += "], "
 	jsonResult += "\"PyPI\": ["
-	jsonResult += !allDeps.has("PYPI") ? "" : generateDependencyTree(allDeps.get("PYPI") as Repository[], depDataMap.get("PYPI") as any)
+	jsonResult += !(toUse.includes("PYPI") && allDeps.has("PYPI")) ? "" : generateDependencyTree(allDeps.get("PYPI") as Repository[], depDataMap.get("PYPI") as any)
 	jsonResult += "],"
 	jsonResult += "\"RubyGems\": ["
-	jsonResult += !allDeps.has("RUBYGEMS") ? "" : generateDependencyTree(allDeps.get("RUBYGEMS") as Repository[], depDataMap.get("RUBYGEMS") as any)
+	jsonResult += !(toUse.includes("RUBYGEMS") && allDeps.has("RUBYGEMS")) ? "" : generateDependencyTree(allDeps.get("RUBYGEMS") as Repository[], depDataMap.get("RUBYGEMS") as any)
 	jsonResult += "]"
 	jsonResult += "}"
 
@@ -266,4 +270,4 @@ async function main() {
 	writeFile("cachedData.json", await getJsonStructure(accessToken, config));
 }
 
-main();
+// main();

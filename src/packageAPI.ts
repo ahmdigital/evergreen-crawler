@@ -56,7 +56,8 @@ export type Repository = {
 //Gets the information for a single npm dependecy from the external service.
 export async function queryDependenyNpm(dependency: string, rateLimiter: PackageRateLimiter) {
 	await rateLimiter.npm.tokenBucket.waitForTokens(1)
-	const manifest = await getPackageManifest({ name: dependency })
+	// const manifest = await getPackageManifest({ name: dependency })
+	const manifest = { version: "1.0.0"}
 	return { name: dependency, data: { version: manifest.version } }
 }
 

@@ -113,7 +113,7 @@ export type OrgRepos = {
 export async function queryGraphQL(query: string, param: any) : Promise<GraphQlQueryResponseData> {
 	const graphqlWithAuth = graphql.defaults({
 	  headers: {
-		authorization: `token ${getAccessToken()}`,
+		authorization: `token TOKEN`,
 		accept: `application/vnd.github.hawkgirl-preview+json`,
 	  },
 	});

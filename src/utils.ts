@@ -1,5 +1,4 @@
 import * as fs from "fs";
-import * as inquier from "inquirer";
 
 /**
  * Read the token from the ".env" file.
@@ -20,7 +19,7 @@ export type Configuration = {
 //Loads the configuration file "config.json"
 export function loadConfig(): Configuration{
 	try {
-		return JSON.parse(fs.readFileSync("config.json", "utf-8")) as Configuration;
+		return JSON.parse(fs.readFileSync("./config.json", "utf-8")) as Configuration;
 	} catch(e){
 		throw new Error("config.json file not found")
 	}
