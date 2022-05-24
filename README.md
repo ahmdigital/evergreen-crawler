@@ -9,9 +9,11 @@ The current goal is to have the crawler run onn the the frontend
 ## TODO
 ### Improvements
 - [x] Pagination
-- [ ] Rate Limiter for GitHub
+- [x] Rate Limiter for GitHub
 - [ ] Default Branch
-- [ ] Error handling
+- [o] Error handling
+  - [ ] invalid or expired token
+- [ ] Fetch all dependencies, currently cut off limit is 250 for each manifest file
 - [ ] Dedicated GraphQL file
 - [ ] Slack alert if a once a dependency is two majors behind
 `

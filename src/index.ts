@@ -121,80 +121,154 @@ function mergeDependenciesLists(managerRepos: Map<string, Repository[]>): Map<st
 	return managerDeps
 }
 
-//The minimum amount of github points needed in oreder to scrape an Organisation
+//The minimum amount of github points needed in order to scrape an Organisation
 //Note: This value is just a guess.
 const MINIMUM_GITHUB_POINTS = 10;
 
-async function scrapeOrganisation(config: ReturnType<typeof loadConfig>, accessToken: string) {
-	let allDeps: Map<string, Repository[]> = new Map()
+/**
+ * This function performs pre-flight requests to retrieve a list of cursors to be used in \\TODO: insert function name here
+ * !NOTE: the output will be saved inside the input repoCursors[] list. This allows us to continue from the last cursor in case of a crash.
+ */
+async function getOrgReposCursors(config: { targetOrganisation: string; }, repoCursors:string[]): Promise<string[]> {
 
-	let repoCursors: string[] = []
+	//let repoCursors: string[] = [];
 
+	const numOfPages = 100
 	let hasNextPage = false;
-	let repoCursor = null;
+	// let repoCursor = null;
 
 	do {
-		const response = await queryRepositories(config.targetOrganisation, null) as OrgRepos
+		let lastCursor:string = null
+		// the last cursor in a call is always equivalent to endCursor, so we can use it for the next calls
+		if (repoCursors.length !== 0) {
+			lastCursor = repoCursors[repoCursors.length - 1]
+		}
+
+
+		const response = await queryRepositories(config.targetOrganisation, numOfPages, lastCursor) as OrgRepos;
 
 		for (const repo of response.organization.repositories.edges) {
-			repoCursors.push(repo.cursor)
+			// TODO: yield repo.cursor
+			repoCursors.push(repo.cursor);
 		}
 
-		hasNextPage = response?.organization?.repositories?.pageInfo?.hasNextPage
-		if (hasNextPage) {
-			repoCursor = response?.organization?.repositories?.pageInfo?.endCursor
+		hasNextPage = response?.organization?.repositories?.pageInfo?.hasNextPage;
+		// if (hasNextPage) {
+		// 	repoCursor = response?.organization?.repositories?.pageInfo?.endCursor;
 
-		}
+		// }
 
-		const remaining = response.rateLimit.remaining
-		const resetDate = new Date(response.rateLimit.resetAt)
+		const remaining = response.rateLimit.remaining;
+		const resetDate = new Date(response.rateLimit.resetAt);
 
 		if (remaining < MINIMUM_GITHUB_POINTS) {
 			// use absolute, because the are cases in which the reset date could be behind current date (now)
-			const diff_seconds = Math.abs(resetDate.getTime() - Date.now()) / (1000)
+			const diff_seconds = Math.abs(resetDate.getTime() - Date.now()) / (1000);
 
-			throw new Error(`Rate limit reached. Waiting ${diff_seconds} seconds.`)
+			throw new Error(`Rate limit reached. Waiting ${diff_seconds} seconds.`);
 		}
 
+	} while (hasNextPage);
+	return repoCursors;
+}
 
-	} while (hasNextPage)
-	// overwrite the first value to null so that we get the first
-	repoCursors[0] = null
-	repoCursor = null;
-	hasNextPage = false;
+/**
+ * retry retries an function up to maxAttempts times.
+ * If maxAttempts is execed, a list containing all thrown errors will be returned
+ */
+async function retry<T>(f:()=>Promise<T>, maxAttempts:number):Promise<T>{
 
-	//this is just for waiting, we will only use successfullResponses and failedResponses
-    let allPromises: Promise<void>[] = []
-	let successfullResponses: GraphResponse[] = []
-	let failedResponses: string[] = []
-
-	const numOfPages = 29
-	for (let curCursor = 0; curCursor < repoCursors.length; curCursor += numOfPages) {
-		const dependencyResponse = queryDependencies(config.targetOrganisation, numOfPages, repoCursors[curCursor]) as Promise<GraphResponse>
-
-		//curCursor must be copied into a const otherwise its value will change by the time the promise is resolved
-		const curCursorCopy = curCursor;
-
-		allPromises.push(dependencyResponse
-			.then((r) => {
-				// if (r.errors != null) {
-				// 	failedResponses.push(repoCursors[curCursorCopy])
-				// }
-				// else {
-				successfullResponses.push(r)
-				// }
-			})
-			.catch(e => {
-				failedResponses.push(repoCursors[curCursorCopy])
-				console.log(`Unexpected error: ${e}`)
-			}))
-
+	if (maxAttempts > 3){
+		console.warn("Wait time for retrying a failed might exceed 10 seconds")
 	}
+
+	const errors:Error[] = []
+
+	for (let i = 0; i < maxAttempts; i ++){
+		try {
+			return await f()
+		}catch(e){
+			// i < maxAttempts - 1 && console.warn("Retrying a failed request")
+			console.warn(e.errors.message)
+			errors.push(e)
+			await sleep(Math.pow(10, i + 1))
+		}
+	}
+
+	throw errors
+}
+
+/**
+ * This function fetches repositories and implements the proper error handling and retry logic.
+ */
+async function fetchingData(config: { targetOrganisation: string; }): Promise<{responses: GraphResponse[], failedCursors: string[]}>  {
+	let repoCursors: string[] = [];
+	const promises: Promise<void>[] = [];
+	try {
+
+		await retry(() => getOrgReposCursors(config, repoCursors), 3);
+		repoCursors[0] = null;
+		const numOfPages = 1;
+		const responses: GraphResponse[] = [];
+
+		const failedCursors: string[] = [];
+
+		for (let curCursor = 0; curCursor < repoCursors.length; curCursor += numOfPages) {
+
+			promises.push(new Promise(async (resolve, reject) => {
+				try {
+					// get numOfPages repositories at a time
+					const res = await retry(() => queryDependencies(config.targetOrganisation, numOfPages, repoCursors[curCursor]) as Promise<GraphResponse>, 2);
+					responses.push(res);
+				} catch (e) {
+					const cursors = repoCursors.slice(curCursor, curCursor + numOfPages);
+					if (numOfPages === 1){
+						failedCursors.push(...cursors);
+					}
+					else{
+						// if there's a failure, get each repository individually
+						try {
+							const subPromises = cursors.map(c => retry(() => queryDependencies(config.targetOrganisation, 1, c) as Promise<GraphResponse>, 3));
+							const res = await Promise.all(subPromises);
+							responses.push(...res);
+						} catch (eSub) {
+							//reject(new Error(`Unable to fetch single repositories due to ${eSub},\nwhich was caused by ${e}`))
+							//we don't want to reject, we want to keep partial responses
+							failedCursors.push(...cursors);
+						}
+					}
+				}
+				resolve();
+			}));
+		}
+
+		await Promise.all(promises);
+
+		if (failedCursors.length === promises.length) {
+			throw new Error("Couldn't fetch any repo :(");
+		}
+		else if (failedCursors.length > 0) {
+			console.warn(`Failed to retrieve ${failedCursors.length} cursors out of ${promises.length} cursors.\nfailed cursors : ${failedCursors}`);
+		}
+
+		return {responses, failedCursors}
+
+
+	} catch (e) {
+		throw new Error(`Nothing we can do about this :( ${e}`);
+	}
+}
+
+
+async function scrapeOrganisation(config: ReturnType<typeof loadConfig>, accessToken: string) {
+	let allDeps = new Map<string, Repository[]>()
+
+	const {responses, failedCursors} = await fetchingData(config);
+
 	console.log("Fetched all repositories cursors");
+	// const responses = await Promise.all(promises);
 
-	await Promise.all(allPromises);
-
-	for (const response of successfullResponses) {
+	for (const response of responses) {
 
 		for (const repo of response?.organization?.repositories?.edges) {
 			const ref = repo.node.mainBranch ? repo.node.mainBranch : repo.node.masterBranch;

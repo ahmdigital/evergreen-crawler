@@ -122,10 +122,10 @@ export async function queryGraphQL(query: string, param: any) : Promise<GraphQlQ
 }
 
 
-	export async function queryRepositories(organisation: string, repoCursor: string | null) : Promise<GraphQlQueryResponseData> {
+	export async function queryRepositories(organisation: string, numOfPages: number, repoCursor: string | null) : Promise<GraphQlQueryResponseData> {
 		let query: string =
 			`
-			query OrgRepos($queryString: String!) {
+			query OrgRepos($queryString: String!, $numOfPages: Int!, $repoCursor: String) {
 				rateLimit {
 				  cost
 				  remaining
@@ -133,7 +133,7 @@ export async function queryGraphQL(query: string, param: any) : Promise<GraphQlQ
 				}
 				organization(login: $queryString) {
 				  id
-				  repositories(first: 100, orderBy: {field: PUSHED_AT, direction: DESC}) {
+				  repositories(first: $numOfPages, after: $repoCursor, orderBy: {field: PUSHED_AT, direction: DESC}) {
 					totalCount
 					edges {
 					  node {
@@ -154,7 +154,7 @@ export async function queryGraphQL(query: string, param: any) : Promise<GraphQlQ
 			`
 			let param = {
 				queryString: organisation,
-				numOfPages: 100,
+				numOfPages: numOfPages,
 				repoCursor: repoCursor,
 			}
   		return queryGraphQL(query, param)
