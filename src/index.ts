@@ -117,7 +117,7 @@ async function scrapeOrganisation(config: ReturnType<typeof loadConfig>, accessT
 	let hasNextPage = false;
 	let repoCursor = null;
 	do{
-		const response = await queryRepositories(config.targetOrganisation, null) as OrgRepos
+		const response = await queryRepositories(config.targetOrganisation, null, accessToken) as OrgRepos
 
 		for (const repo of response.organization.repositories.edges) {
 			repoCursors.push(repo.cursor)
@@ -137,7 +137,7 @@ async function scrapeOrganisation(config: ReturnType<typeof loadConfig>, accessT
 	let responses: Promise<GraphResponse>[] = []
 	const numOfPages = 1
 	for (let curCursor = 0; curCursor < repoCursors.length; curCursor+=numOfPages){
-		responses.push(await queryDependencies(config.targetOrganisation, numOfPages, repoCursors[curCursor]) as Promise<GraphResponse>)
+		responses.push(await queryDependencies(config.targetOrganisation, numOfPages, repoCursors[curCursor], accessToken) as Promise<GraphResponse>)
 	}
 	console.log("Fetched all cursors for the organisation")
 	await Promise.all(responses).catch(function(err) {

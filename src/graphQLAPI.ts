@@ -1,4 +1,3 @@
-import { getAccessToken } from "./utils";
 import {
 	GraphQlQueryResponseData,
 	GraphqlResponseError,
@@ -110,10 +109,10 @@ export type OrgRepos = {
 	}
 }
 
-export async function queryGraphQL(query: string, param: any) : Promise<GraphQlQueryResponseData> {
+export async function queryGraphQL(query: string, param: any, token: string) : Promise<GraphQlQueryResponseData> {
 	const graphqlWithAuth = graphql.defaults({
 	  headers: {
-		authorization: `token TOKEN`,
+		authorization: `token ${token}`,
 		accept: `application/vnd.github.hawkgirl-preview+json`,
 	  },
 	});
@@ -122,7 +121,7 @@ export async function queryGraphQL(query: string, param: any) : Promise<GraphQlQ
 }
 
 
-	export async function queryRepositories(organisation: string, repoCursor: string | null) : Promise<GraphQlQueryResponseData> {
+	export async function queryRepositories(organisation: string, repoCursor: string | null, token: string) : Promise<GraphQlQueryResponseData> {
 		let query: string =
 			`
 			query OrgRepos($queryString: String!) {
@@ -157,10 +156,10 @@ export async function queryGraphQL(query: string, param: any) : Promise<GraphQlQ
 				numOfPages: 100,
 				repoCursor: repoCursor,
 			}
-  		return queryGraphQL(query, param)
+  		return queryGraphQL(query, param, token)
 
 	}
-export async function queryDependencies(organisation: string, numOfPages: number, repoCursor: string | null) : Promise<GraphQlQueryResponseData> {
+export async function queryDependencies(organisation: string, numOfPages: number, repoCursor: string | null, token: string) : Promise<GraphQlQueryResponseData> {
 
   // refer to this on how to query different branches/ref,
   // https://stackoverflow.com/questions/51504760/how-to-get-all-repos-that-contain-a-certain-branch-on-githubs-graphql-api
@@ -239,5 +238,5 @@ export async function queryDependencies(organisation: string, numOfPages: number
 	  dependencyLimit: 10
     }
 
-  return queryGraphQL(query, param)
+  return queryGraphQL(query, param, token)
 }
