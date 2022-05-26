@@ -11,6 +11,8 @@ export class TokenBucket {
 	private lastRefill: number
 	private queue: Promise<void>[] = []
 
+	private previous: Promise<void> = new Promise<void>((resolve) => { resolve() })
+
 	/**
 	 * Creates a new TokenBucket instance.
 	 * @param capacity The maximum number of tokens that can be stored in the bucket.
@@ -71,23 +73,40 @@ export class TokenBucket {
 			throw new Error("amount must be less than or equal to capacity")
 		}
 
+		//TODO: Need someone to either fix the commented code or verify the below is equivalent
+
+		// const promise = new Promise<void>(async resolve => {
+		// 	const previousPromise = this.queue.push(promise) - 2
+		// 	if (previousPromise >= 0) {
+		// 		await this.queue[previousPromise] // wait for the previous promise to resolve
+		// 	}
+
+		// 	while (!this.getTokens(amount)) {
+		// 		// wait for the bucket to have enough tokens
+		// 		const neededTokens = amount - this.tokens
+		// 		const waitTime = (neededTokens / this.fillRate) * 1000
+		// 		await sleep(waitTime)
+		// 	}
+
+		// 	this.queue.shift()
+		// 	resolve()
+		// })
+
+		// return promise
+
 		const promise = new Promise<void>(async resolve => {
-			const previousPromise = this.queue.push(promise) - 2
-			if (previousPromise >= 0) {
-				await this.queue[previousPromise] // wait for the previous promise to resolve
-			}
+			await this.previous
 
 			while (!this.getTokens(amount)) {
 				// wait for the bucket to have enough tokens
 				const neededTokens = amount - this.tokens
 				const waitTime = (neededTokens / this.fillRate) * 1000
 				await sleep(waitTime)
+				
 			}
-
-			this.queue.shift()
 			resolve()
 		})
-
+		this.previous = promise
 		return promise
 	}
 

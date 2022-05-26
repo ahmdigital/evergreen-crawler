@@ -211,7 +211,7 @@ export async function getJsonStructure(accessToken: string, config: Configuratio
 	console.log(config)
 	console.log(config.targetOrganisation)
 
-	const rateLimiter: PackageRateLimiter = {
+	let rateLimiter: PackageRateLimiter = {
 		npm: { tokenBucket: new TokenBucket(1000, APIParameters.npm.rateLimit, APIParameters.npm.intialTokens) },
 		pypi: { tokenBucket: new TokenBucket(1000, APIParameters.pypi.rateLimit, APIParameters.pypi.intialTokens) },
 		rubygems: { tokenBucket: new TokenBucket(1000, APIParameters.rubygems.rateLimit, APIParameters.rubygems.intialTokens) },
@@ -240,6 +240,8 @@ export async function getJsonStructure(accessToken: string, config: Configuratio
 	await Promise.all([
 		//rateLimiter.Github.tokenBucket.waitForShorterQueue(100),
 		rateLimiter.npm.tokenBucket.waitForShorterQueue(100),
+		rateLimiter.pypi.tokenBucket.waitForShorterQueue(100),
+		rateLimiter.rubygems.tokenBucket.waitForShorterQueue(100),
 	]);
 
 	//Print the total time
