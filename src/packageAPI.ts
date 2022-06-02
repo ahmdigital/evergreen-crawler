@@ -13,10 +13,23 @@ export const APIParameters = {
 		// PyPI has no set rate limit, but says to "[t]ry not to make a lot of requests (thousands) in a short amount
 		// of time (minutes)", and "it’s preferred to make requests in serial over a longer amount of time if
 		// possible", so we'll keep it at 1000 a minute for now.
-		rateLimit: 1000 /60,
+		rateLimit: 1000 / 60,
+		intialTokens: 1
+	},
+	rubygems: {
+		// https://guides.rubygems.org/rubygems-org-rate-limits/
+		// 15 per second for the dependency API
+		rateLimit: 15,
 		intialTokens: 1
 	},
 }
+
+	//https://docs.github.com/en/code-security/supply-chain-security/understanding-your-software-supply-chain/about-the-dependency-graph
+export const packageManagerFiles = [
+	{ name: "NPM", extensions: ["package.json"] },
+	{ name: "PYPI", extensions: ["requirements.txt"] },
+	{ name: "RUBYGEMS", extensions: ["Gemfile"] },
+]
 
 //Ratelimiter is a POJO that contains a TokenBuckets and RequestCounters for each API source.
 export type PackageRateLimiter = {
@@ -25,6 +38,9 @@ export type PackageRateLimiter = {
 		//reqCounter: RequestCounter;
 	},
 	pypi: {
+		tokenBucket: TokenBucket;
+	},
+	rubygems: {
 		tokenBucket: TokenBucket;
 	},
 }
@@ -138,32 +154,43 @@ export async function queryDependencyPyPI(dependency: string, rateLimiter: Packa
 	return { name: dependency, data: { version: bestVersion } }
 }
 
-//Calls the npm API for all dependencies in the given listPackageRateLPackageRateLimiter) {
-export async function getDependenciesNpm(dependencies: string[], rateLimiter: PackageRateLimiter) {
-	let depMap: Map<string, { version: string }> = new Map()
+//Gets the information for a single Ruby dependecy from an external service, RubyGems.
+export async function queryDependencyRubyGems(dependency: string, rateLimiter: PackageRateLimiter) {
+	await rateLimiter.rubygems.tokenBucket.waitForTokens(1)
 
-	const depList = await Promise.all(
-		dependencies.map((dependency) => queryDependenyNpm(dependency, rateLimiter))
-	);
+	//https://guides.rubygems.org/rubygems-org-api/
+	const response = await fetch("https://rubygems.org/api/v1/versions/" + dependency + "/latest.json")
+	const data = await response.json() as { version: string }
 
-	for (const dependency of depList) {
-		depMap.set(dependency.name, dependency.data)
-	}
-
-	return depMap
+	return { name: dependency, data: { version: data.version } }
 }
 
-//Calls the PyPI API for all dependencies in the given listPackageRateLPackageRateLimiter) {
-export async function getDependenciesPyPI(dependencies: string[], rateLimiter: PackageRateLimiter) {
-	let depMap: Map<string, { version: string }> = new Map()
-
-	const depList = await Promise.all(
-		dependencies.map((dependency) => queryDependencyPyPI(dependency, rateLimiter))
-	);
-
-	for (const dependency of depList) {
-		depMap.set(dependency.name, dependency.data)
+//Calls the given API for all dependencies in the given list
+async function getDependencies(dependencies: string[], rateLimiter: PackageRateLimiter, queryFunc: any) {
+		let depMap: Map<string, { version: string }> = new Map()
+	
+		const depList = await Promise.all(
+			dependencies.map((dependency) => queryFunc(dependency, rateLimiter))
+		);
+	
+		for (const dependency of depList) {
+			depMap.set(dependency.name, dependency.data)
+		}
+	
+		return depMap
 	}
 
-	return depMap
+//Calls the npm API for all dependencies in the given list
+export async function getDependenciesNpm(dependencies: string[], rateLimiter: PackageRateLimiter) {
+	return getDependencies(dependencies, rateLimiter, queryDependenyNpm)
+}
+
+//Calls the PyPI API for all dependencies in the given list
+export async function getDependenciesPyPI(dependencies: string[], rateLimiter: PackageRateLimiter) {
+	return getDependencies(dependencies, rateLimiter, queryDependencyPyPI)
+}
+
+//Calls the RubyGems API for all dependencies in the given list
+export async function getDependenciesRubyGems(dependencies: string[], rateLimiter: PackageRateLimiter) {
+	return getDependencies(dependencies, rateLimiter, queryDependencyRubyGems)
 }

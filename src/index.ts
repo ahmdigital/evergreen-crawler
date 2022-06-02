@@ -2,7 +2,7 @@ import { Octokit, RestEndpointMethodTypes } from "@octokit/rest";
 import { TokenBucket } from "./rate-limiting/token-bucket";
 import { getAccessToken, loadConfig, sleep, writeFile } from "./utils";
 import { generateDependencyTree } from "./outputData";
-import { getDependenciesNpm, getDependenciesPyPI, Repository, APIParameters, PackageRateLimiter } from "./packageAPI";
+import { getDependenciesNpm, getDependenciesPyPI, Repository, APIParameters, PackageRateLimiter, getDependenciesRubyGems, packageManagerFiles } from "./packageAPI";
 import { DependencyGraphDependency, GraphResponse, OrgRepos, RepoEdge, BranchManifest, UpperBranchManifest, queryDependencies, queryRepositories } from "./graphQLAPI"
 
 //var Map = require("es6-map");
@@ -33,10 +33,6 @@ function getRepos(response: GraphResponse) {
 // get dependencies of a repo obj, used by function getAllRepoDeps(repoList)
 // returns object with repo name and list of blob paths ending with package.json and blob path's dependencies
 function getRepoDependencies(repo: BranchManifest) {
-	const packageManagers = [
-		{ name: "NPM", extensions: ["package.json"] },
-		{ name: "PYPI", extensions: ["requirements.txt"] },
-	]
 
 	function blobPathDeps(subPath: string, blobPath: string, version: string, deps: DependencyGraphDependency[]) {
 		return { subPath: subPath, blobPath: blobPath, version: version, dependencies: deps }
@@ -56,11 +52,12 @@ function getRepoDependencies(repo: BranchManifest) {
 		const blobPath = file.node.blobPath;
 		const subPath = depGraphManifests.nodes[index].filename
 		index += 1;
-		for (const packageManager of packageManagers) {
+		for (const packageManager of packageManagerFiles) {
 			for (const ext of packageManager.extensions) {
 				// check path ends with extension
 				if (subPath.endsWith(ext)) {
-					console.log(blobPath + ", " + subPath)
+					const subPathName = subPath.replace(ext, "")
+					console.log(blobPath + ", " + subPathName + ext)
 					const version = ""//file.node.version
 					const depCount = file.node.dependencies.totalCount
 
@@ -70,11 +67,11 @@ function getRepoDependencies(repo: BranchManifest) {
 
 					if (depCount > 0) {
 						const dependencies = file.node.dependencies.nodes
-						const blobPathDep = blobPathDeps(subPath, blobPath, version, dependencies)
+						const blobPathDep = blobPathDeps(subPathName, blobPath, version, dependencies)
 						repoDepObj.packageMap.get(packageManager.name).push(blobPathDep)
 					} else {
 						// currently includes package.json files with no dependencies
-						const blobPathDep = blobPathDeps(subPath, blobPath, version, [])
+						const blobPathDep = blobPathDeps(subPathName, blobPath, version, [])
 						repoDepObj.packageMap.get(packageManager.name).push(blobPathDep)
 					}
 				}
@@ -303,7 +300,7 @@ async function scrapeOrganisation(config: ReturnType<typeof loadConfig>, accessT
 					}
 
 					let rep: Repository = {
-						name: name + "(" + subRepo.subPath + ")",
+						name: name + (subRepo.subPath == "" ? "" : "(" + subRepo.subPath + ")"),
 						version: subRepo.version,
 						link: repo.manifest.url,
 						isArchived: repo.manifest.isArchived,
@@ -339,6 +336,7 @@ async function main() {
 	const rateLimiter: PackageRateLimiter = {
 		npm: { tokenBucket: new TokenBucket(1000, APIParameters.npm.rateLimit, APIParameters.npm.intialTokens) },
 		pypi: { tokenBucket: new TokenBucket(1000, APIParameters.pypi.rateLimit, APIParameters.pypi.intialTokens) },
+		rubygems: { tokenBucket: new TokenBucket(1000, APIParameters.rubygems.rateLimit, APIParameters.rubygems.intialTokens) },
 	};
 
 	const startTime = Date.now();
@@ -350,10 +348,10 @@ async function main() {
 	// allDeps: list of dependencies to be given to package APIs
 	const packageDeps = mergeDependenciesLists(allDeps);
 
-	const npmDepDataMap = packageDeps.has("NPM") ? await getDependenciesNpm(packageDeps.get("NPM"), rateLimiter) : null;
-	console.log("Finished npm. Size: " + npmDepDataMap?.size)
-	const pypiDepDataMap = packageDeps.has("PYPI") ? await getDependenciesPyPI(packageDeps.get("PYPI"), rateLimiter) : null;
-	console.log("Finished PyPI. Size: " + pypiDepDataMap?.size)
+	let depDataMap: Map<string, Map<string, {version: string}>> = new Map()
+	if(packageDeps.has("NPM")){ depDataMap.set("NPM", await getDependenciesNpm(packageDeps.get("NPM"), rateLimiter)) }
+	if(packageDeps.has("PYPI")){ depDataMap.set("PYPI", await getDependenciesPyPI(packageDeps.get("PYPI"), rateLimiter)) }
+	if(packageDeps.has("RUBYGEMS")){ depDataMap.set("RUBYGEMS", await getDependenciesRubyGems(packageDeps.get("RUBYGEMS"), rateLimiter)) }
 
 	//Wait for all requests to finish
 	console.log("Waiting for all requests to finish");
@@ -370,10 +368,13 @@ async function main() {
 
 	jsonResult += "{"
 	jsonResult += "\"npm\": ["
-	jsonResult += !allDeps.has("NPM") ? "" : generateDependencyTree(allDeps.get("NPM"), npmDepDataMap)
+	jsonResult += !allDeps.has("NPM") ? "" : generateDependencyTree(allDeps.get("NPM"), depDataMap.get("NPM"))
 	jsonResult += "], "
 	jsonResult += "\"PyPI\": ["
-	jsonResult += !allDeps.has("PYPI") ? "" : generateDependencyTree(allDeps.get("PYPI"), pypiDepDataMap)
+	jsonResult += !allDeps.has("PYPI") ? "" : generateDependencyTree(allDeps.get("PYPI"), depDataMap.get("PYPI"))
+	jsonResult += "],"
+	jsonResult += "\"RubyGems\": ["
+	jsonResult += !allDeps.has("RUBYGEMS") ? "" : generateDependencyTree(allDeps.get("RUBYGEMS"), depDataMap.get("RUBYGEMS"))
 	jsonResult += "]"
 	jsonResult += "}"
 
