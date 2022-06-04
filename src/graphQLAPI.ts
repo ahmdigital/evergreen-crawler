@@ -60,15 +60,20 @@ export type RepoEdge = {
 	cursor: string
 }
 
-export type GraphResponse = {
-    errors?: {
-        message: string }[]
-	rateLimit: {
-		cost: number,
-		remaining: number,
-		resetAt: string
+export type RateLimit = {
+	cost: number,
+	remaining: number,
+	resetAt: string
 
-	},
+}
+
+export type ErrorMessage = {
+	message: string
+}
+
+export type GraphResponse = {
+    errors?: ErrorMessage[]
+	rateLimit: RateLimit,
 	organization: {
 		id: string
 		repositories: {
@@ -82,14 +87,8 @@ export type GraphResponse = {
 }
 
 export type OrgRepos = {
-    errors?: {
-        message: string }[]
-	rateLimit: {
-		cost: number,
-		remaining: number,
-		resetAt: string
-
-	},
+    errors?: ErrorMessage[]
+	rateLimit: RateLimit,
 	organization: {
 		id: string
 		repositories: {
@@ -110,6 +109,27 @@ export type OrgRepos = {
 	}
 }
 
+export type Manifest = {
+	text: string | null
+}
+
+export type RepoManifest = {
+    errors?: ErrorMessage[]
+	rateLimit: RateLimit,
+	repository: {
+		manifest1: Manifest,
+		manifest2?: Manifest,
+		manifest3?: Manifest,
+		manifest4?: Manifest,
+		manifest5?: Manifest,
+		manifest6?: Manifest,
+		manifest7?: Manifest,
+		manifest8?: Manifest,
+		manifest9?: Manifest,
+		manifest10?: Manifest
+	}
+}
+
 export async function queryGraphQL(query: string, param: any) : Promise<GraphQlQueryResponseData> {
 	const graphqlWithAuth = graphql.defaults({
 	  headers: {
@@ -122,44 +142,44 @@ export async function queryGraphQL(query: string, param: any) : Promise<GraphQlQ
 }
 
 
-	export async function queryRepositories(organisation: string, numOfPages: number, repoCursor: string | null) : Promise<GraphQlQueryResponseData> {
-		let query: string =
-			`
-			query OrgRepos($queryString: String!, $numOfPages: Int!, $repoCursor: String) {
-				rateLimit {
-				  cost
-				  remaining
-				  resetAt
-				}
-				organization(login: $queryString) {
-				  id
-				  repositories(first: $numOfPages, after: $repoCursor, orderBy: {field: PUSHED_AT, direction: DESC}) {
-					totalCount
-					edges {
-					  node {
-						pushedAt
-						url
-						updatedAt
-						name
-					  }
-					  cursor
-					}
-					pageInfo {
-					  endCursor
-					  hasNextPage
-					}
+export async function queryRepositories(organisation: string, numOfPages: number, repoCursor: string | null) : Promise<GraphQlQueryResponseData> {
+	let query: string =
+		`
+		query OrgRepos($organisation: String!) {
+			rateLimit {
+			  cost
+			  remaining
+			  resetAt
+			}
+			organization(login: $organisation) {
+			  id
+			  repositories(first: $numOfPages, after: $repoCursor, orderBy: {field: PUSHED_AT, direction: DESC}) {
+				totalCount
+				edges {
+				  node {
+					pushedAt
+					url
+					updatedAt
+					name
 				  }
+				  cursor
+				}
+				pageInfo {
+				  endCursor
+				  hasNextPage
 				}
 			  }
-			`
-			let param = {
-				queryString: organisation,
-				numOfPages: numOfPages,
-				repoCursor: repoCursor,
 			}
-  		return queryGraphQL(query, param)
+		  }
+		`
+		let param = {
+			organisation: organisation,
+			numOfPages: numOfPages,
+			repoCursor: repoCursor,
+		}
+	return queryGraphQL(query, param)
 
-	}
+}
 export async function queryDependencies(organisation: string, numOfPages, repoCursor: string | null) : Promise<GraphQlQueryResponseData> {
 
   // refer to this on how to query different branches/ref,
@@ -167,13 +187,13 @@ export async function queryDependencies(organisation: string, numOfPages, repoCu
   // TODO: limit to default branch, current setup no working
   let query: string =
     `
-	query orgRepos($queryString: String!, $numOfPages: Int!, $repoCursor: String, $dependencyLimit: Int!) {
+	query orgRepos($organisation: String!, $numOfPages: Int!, $repoCursor: String, $dependencyLimit: Int!) {
 		rateLimit{
 		   cost
 		   remaining
 		   resetAt
 		   }
-		 organization(login: $queryString) {
+		 organization(login: $organisation) {
 		 id
 		 repositories(first: $numOfPages, after: $repoCursor , orderBy: {field: PUSHED_AT, direction: DESC
 		   }) {
@@ -233,7 +253,7 @@ export async function queryDependencies(organisation: string, numOfPages, repoCu
    }
         `
 	let param = {
-      queryString: organisation,
+	  organisation: organisation,
       numOfPages: numOfPages,
       repoCursor: repoCursor,
 	  dependencyLimit: 10
@@ -241,3 +261,52 @@ export async function queryDependencies(organisation: string, numOfPages, repoCu
 
   return queryGraphQL(query, param)
 }
+
+/**
+ *
+ * @param organisation organisation name
+ * @param repoName repository name
+ * @param defaultBranch default branch name
+ * @param manifestPaths manifest paths, must be relative to the repository root, must have a length of less than 10
+ * @returns return at most 10 manifests objects
+ */
+export async function queryRepoManifest(organisation: string, repoName: string, defaultBranch:string, manifestPaths: string[]) : Promise<GraphQlQueryResponseData> {
+
+	// https://graphql.org/learn/queries/#inline-fragments
+	// rev-parse compatible path
+	// valid manifest file name: package.json, yarn.lock, requirements.txt and others
+
+	// Changing query inside the query is not safe, due to graphql injections, but since we are not doing any mutations, this should be fine
+
+	if (manifestPaths.length > 10) {
+		manifestPaths = manifestPaths.slice(0, 10)
+	}
+
+	let query: string =
+	  	`
+		query repoManifest($organisation: String!, $repoName: String!) {
+			rateLimit {
+			  cost
+			  remaining
+			  resetAt
+			}
+			repository(owner: $organisation, name: $repoName) {
+			${ manifestPaths.map((manifestPath, id) => `manifest${id+1}: object(expression: "${defaultBranch}:${manifestPath}") {
+				... manifestFields
+				}`
+			).join('\n')}
+		}
+	}
+
+		fragment manifestFields on Blob {
+			text
+		}
+		`
+	  let param = {
+		organisation: organisation,
+		repoName: repoName,
+		defaultBranch: defaultBranch,
+	  }
+
+	return queryGraphQL(query, param)
+  }

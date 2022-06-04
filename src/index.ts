@@ -3,7 +3,7 @@ import { TokenBucket } from "./rate-limiting/token-bucket";
 import { getAccessToken, loadConfig, sleep, writeFile } from "./utils";
 import { generateDependencyTree } from "./outputData";
 import { getDependenciesNpm, getDependenciesPyPI, Repository, APIParameters, PackageRateLimiter, getDependenciesRubyGems, packageManagerFiles } from "./packageAPI";
-import { DependencyGraphDependency, GraphResponse, OrgRepos, RepoEdge, BranchManifest, UpperBranchManifest, queryDependencies, queryRepositories } from "./graphQLAPI"
+import { DependencyGraphDependency, GraphResponse, OrgRepos, RepoEdge, BranchManifest, UpperBranchManifest, queryDependencies, queryRepositories, queryRepoManifest, RepoManifest } from "./graphQLAPI"
 
 //var Map = require("es6-map");
 
@@ -78,7 +78,6 @@ function getRepoDependencies(repo: BranchManifest) {
 			}
 		}
 	}
-
 	return repoDepObj
 }
 
@@ -339,6 +338,9 @@ async function main() {
 		rubygems: { tokenBucket: new TokenBucket(1000, APIParameters.rubygems.rateLimit, APIParameters.rubygems.intialTokens) },
 	};
 
+	// This is how you call queryRepoManifest
+	// const temp = await queryRepoManifest('kubernetes-client', 'java', "master", ['pom.xml','e2e/pom.xml'])
+	// console.log(temp)
 	const startTime = Date.now();
 
 	// ==== START: Extracting dependencies from Github graphql response === //
