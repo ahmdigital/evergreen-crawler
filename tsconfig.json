@@ -1,5 +1,6 @@
 {
 	"compilerOptions": {
+		"strict": true,
 		"lib": [
 			"es5",
 			"es6",
@@ -21,5 +22,12 @@
 		"experimentalDecorators": true,
 		"downlevelIteration": true,
 		"sourceMap": true
-	}
+	},
+	"include": [
+		"src/**/*.ts"
+	],
+	"exclude": [
+		"node_modules",
+		"src/db/**/*.ts"
+	]
 }
