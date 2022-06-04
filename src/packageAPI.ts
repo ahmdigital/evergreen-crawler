@@ -56,14 +56,8 @@ export type Repository = {
 
 //Gets the information for a single npm dependecy from the external service.
 export async function queryDependenyNpm(dependency: string, rateLimiter: PackageRateLimiter) {
-	// await rateLimiter.npm.tokenBucket.waitForTokens(1)
-	// const requestOptions : {method: string, redirect: string} = {
-	// 	method: 'GET',
-	// 	redirect: 'follow'
-	// };
+	await rateLimiter.npm.tokenBucket.waitForTokens(1)
 
-	// const manifest = await (await fetch(`https://registry.npmjs.org/${dependency}`, requestOptions as RequestInit)).json()
-	// console.log(manifest["dist-tags"].latest)
 	let manifest
 	try{
 		manifest = await getPackageManifest({ name: dependency })
@@ -72,8 +66,6 @@ export async function queryDependenyNpm(dependency: string, rateLimiter: Package
 		manifest = { version: "1.0.0"}
 		console.log(e)
 	}
-	// const manifest = { version: "1.0.0"}
-	// return { name: dependency, data: { version: manifest["dist-tags"].latest } }
 	return { name: dependency, data: { version: manifest.version } }
 }
 
@@ -149,7 +141,7 @@ export function greaterThanPythonPackageVersion(a: PythonPackageVersion, b: Pyth
 
 //Gets the information for a single pip dependecy from an external service, PyPI.
 export async function queryDependencyPyPI(dependency: string, rateLimiter: PackageRateLimiter) {
-	// await rateLimiter.pypi.tokenBucket.waitForTokens(1)
+	await rateLimiter.pypi.tokenBucket.waitForTokens(1)
 
 	//https://warehouse.pypa.io/api-reference/, they suggest that our user agent should mention who we are
 	const response = await (await fetch("https://pypi.org/pypi/" + dependency + "/json")).json()
@@ -173,7 +165,7 @@ export async function queryDependencyPyPI(dependency: string, rateLimiter: Packa
 
 //Gets the information for a single Ruby dependecy from an external service, RubyGems.
 export async function queryDependencyRubyGems(dependency: string, rateLimiter: PackageRateLimiter) {
-	// await rateLimiter.rubygems.tokenBucket.waitForTokens(1)
+	await rateLimiter.rubygems.tokenBucket.waitForTokens(1)
 
 	//https://guides.rubygems.org/rubygems-org-api/
 	const response = await (await fetch("https://rubygems.org/api/v1/versions/" + dependency + "/latest.json")).json()
