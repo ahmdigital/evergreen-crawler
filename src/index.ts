@@ -115,14 +115,14 @@ const MINIMUM_GITHUB_POINTS = 10;
  * This function performs pre-flight requests to retrieve a list of cursors to be used in \\TODO: insert function name here
  * !NOTE: the output will be saved inside the input repoCursors[] list. This allows us to continue from the last cursor in case of a crash.
  */
-async function getOrgReposCursors(config: { targetOrganisation: string; }, repoCursors:(string | null)[], accessToken: string): Promise<string[]> {
+async function getOrgReposCursors(config: { targetOrganisation: string; }, repoCursors:(string | null)[], accessToken: string): Promise<(string | null)[]> {
 
 	const numOfPages = 100
 	let hasNextPage = false;
 	// let repoCursor = null;
 
 	do {
-		let lastCursor:string = null
+		let lastCursor: string | null = null
 		// the last cursor in a call is always equivalent to endCursor, so we can use it for the next calls
 		if (repoCursors.length !== 0) {
 			lastCursor = repoCursors[repoCursors.length - 1]
@@ -174,7 +174,13 @@ async function retry<T>(f:()=>Promise<T>, maxAttempts:number):Promise<T>{
 		}catch(e){
 			// i < maxAttempts - 1 && console.warn("Retrying a failed request")
 			// console.warn(e.errors.message)
-			errors.push(e)
+			if(e instanceof Error){
+				errors.push(e)
+			} else{
+				console.log("Error of unknown type in retry:")
+				console.log(e)
+				errors.push(new Error())
+			}
 			await sleep(Math.pow(10, i + 1))
 		}
 	}
@@ -185,8 +191,8 @@ async function retry<T>(f:()=>Promise<T>, maxAttempts:number):Promise<T>{
 /**
  * This function fetches repositories and implements the proper error handling and retry logic.
  */
-async function fetchingData(config: { targetOrganisation: string; }, accessToken:string ): Promise<{responses: GraphResponse[], failedCursors: string[]}>  {
-	let repoCursors: string[] = [];
+async function fetchingData(config: { targetOrganisation: string; }, accessToken:string ): Promise<{responses: GraphResponse[], failedCursors: (string | null)[]}>  {
+	let repoCursors: (string | null)[] = [];
 	const promises: Promise<void>[] = [];
 	try {
 
@@ -195,7 +201,7 @@ async function fetchingData(config: { targetOrganisation: string; }, accessToken
 		const numOfPages = 1;
 		const responses: GraphResponse[] = [];
 
-		const failedCursors: string[] = [];
+		const failedCursors: (string | null)[] = [];
 
 		for (let curCursor = 0; curCursor < repoCursors.length; curCursor += numOfPages) {
 
