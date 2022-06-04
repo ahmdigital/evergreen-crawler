@@ -1,9 +1,8 @@
-import { Octokit, RestEndpointMethodTypes } from "@octokit/rest";
 import { TokenBucket } from "./rate-limiting/token-bucket";
-import { getAccessToken, loadConfig, writeFile, Configuration } from "./utils";
+import { getAccessToken, loadConfig, writeFile, Configuration, sleep } from "./utils";
 import { generateDependencyTree } from "./outputData";
 import { getDependenciesNpm, getDependenciesPyPI, Repository, APIParameters, PackageRateLimiter, getDependenciesRubyGems, packageManagerFiles } from "./packageAPI";
-import { DependencyGraphDependency, GraphResponse, OrgRepos, RepoEdge, BranchManifest, UpperBranchManifest, queryDependencies, queryRepositories } from "./graphQLAPI"
+import { DependencyGraphDependency, GraphResponse, OrgRepos, RepoEdge, BranchManifest, UpperBranchManifest, queryDependencies, queryRepositories, queryRepoManifest, RepoManifest } from "./graphQLAPI"
 
 // returns list of repo objects
 function getRepos(response: GraphResponse) {
@@ -52,7 +51,7 @@ function getRepoDependencies(repo: BranchManifest) {
 					const version = ""//file.node.version
 					const depCount = file.node.dependencies.totalCount
 
-					if(!repoDepObj.packageMap.has(packageManager.name)){
+					if (!repoDepObj.packageMap.has(packageManager.name)) {
 						repoDepObj.packageMap.set(packageManager.name, [])
 					}
 
@@ -69,7 +68,6 @@ function getRepoDependencies(repo: BranchManifest) {
 			}
 		}
 	}
-
 	return repoDepObj
 }
 
@@ -79,7 +77,7 @@ function getAllRepoDeps(repoList: BranchManifest[]) {
 	let all_dependencies: ReturnType<typeof getRepoDependencies>[] = []
 	for (const repo of repoList) {
 		const deps = getRepoDependencies(repo)
-		if(deps.packageMap.size > 0){
+		if (deps.packageMap.size > 0) {
 			all_dependencies.push(deps)
 		}
 	}
@@ -91,10 +89,10 @@ function mergeDependenciesLists(managerRepos: Map<string, Repository[]>): Map<st
 
 	for (const [packageManager, repos] of managerRepos) {
 		//console.log(packageManager)
-		for(const repo of repos){
-			for (const [name] of repo.dependencies) {
+		for (const repo of repos) {
+			for (const [name, version] of repo.dependencies) {
 				//console.log("\t" + name)
-				if(!deps.has(packageManager)){ deps.set(packageManager, new Set()) }
+				if (!deps.has(packageManager)) { deps.set(packageManager, new Set()) }
 				deps.get(packageManager)?.add(name);
 			}
 		}
@@ -102,53 +100,160 @@ function mergeDependenciesLists(managerRepos: Map<string, Repository[]>): Map<st
 
 	let managerDeps: Map<string, string[]> = new Map()
 
-	for(const [key, value] of deps){
+	for (const [key, value] of deps) {
 		managerDeps.set(key, Array.from(value.values()))
 	}
 
 	return managerDeps
 }
 
-async function scrapeOrganisation(config: ReturnType<typeof loadConfig>, accessToken: string){
-	let allDeps: Map<string, Repository[]> = new Map()
+//The minimum amount of github points needed in order to scrape an Organisation
+//Note: This value is just a guess.
+const MINIMUM_GITHUB_POINTS = 10;
 
-	let repoCursors: (string | null)[] = []
+/**
+ * This function performs pre-flight requests to retrieve a list of cursors to be used in \\TODO: insert function name here
+ * !NOTE: the output will be saved inside the input repoCursors[] list. This allows us to continue from the last cursor in case of a crash.
+ */
+async function getOrgReposCursors(config: { targetOrganisation: string; }, repoCursors:(string | null)[], accessToken: string): Promise<string[]> {
 
+	const numOfPages = 100
 	let hasNextPage = false;
-	let repoCursor = null;
-	do{
-		const response = await queryRepositories(config.targetOrganisation, null, accessToken) as OrgRepos
+	// let repoCursor = null;
+
+	do {
+		let lastCursor:string = null
+		// the last cursor in a call is always equivalent to endCursor, so we can use it for the next calls
+		if (repoCursors.length !== 0) {
+			lastCursor = repoCursors[repoCursors.length - 1]
+		}
+
+
+		const response = await queryRepositories(config.targetOrganisation, numOfPages, lastCursor, accessToken) as OrgRepos;
 
 		for (const repo of response.organization.repositories.edges) {
-			repoCursors.push(repo.cursor)
+			// TODO: yield repo.cursor
+			repoCursors.push(repo.cursor);
 		}
 
-		hasNextPage = response?.organization?.repositories?.pageInfo?.hasNextPage
-		if (hasNextPage) {
-			repoCursor = response?.organization?.repositories?.pageInfo?.endCursor
+		hasNextPage = response?.organization?.repositories?.pageInfo?.hasNextPage;
+		// if (hasNextPage) {
+		// 	repoCursor = response?.organization?.repositories?.pageInfo?.endCursor;
+
+		// }
+
+		const remaining = response.rateLimit.remaining;
+		const resetDate = new Date(response.rateLimit.resetAt);
+
+		if (remaining < MINIMUM_GITHUB_POINTS) {
+			// use absolute, because the are cases in which the reset date could be behind current date (now)
+			const diff_seconds = Math.abs(resetDate.getTime() - Date.now()) / (1000);
+
+			throw new Error(`Rate limit reached. Waiting ${diff_seconds} seconds.`);
 		}
 
-	} while(hasNextPage)
-	// overwrite the first value to null
-	repoCursors[0] = null
-	repoCursor = null;
-	hasNextPage = false;
+	} while (hasNextPage);
+	return repoCursors;
+}
 
-	let responses: Promise<GraphResponse>[] = []
-	const numOfPages = 1
-	for (let curCursor = 0; curCursor < repoCursors.length; curCursor+=numOfPages){
-		responses.push(await queryDependencies(config.targetOrganisation, numOfPages, repoCursors[curCursor], accessToken) as Promise<GraphResponse>)
+/**
+ * retry retries an function up to maxAttempts times.
+ * If maxAttempts is execed, a list containing all thrown errors will be returned
+ */
+async function retry<T>(f:()=>Promise<T>, maxAttempts:number):Promise<T>{
+
+	if (maxAttempts > 3){
+		console.warn(`Wait time for retrying will be up to: ${Math.pow(10, maxAttempts)} milliseconds`)
 	}
-	console.log("Fetched all cursors for the organisation")
-	await Promise.all(responses).catch(function(err) {
-		console.log("Failed to get information for a repository!")
-		console.log(err.message)
-		process.exit(1)
-	})
-	console.log("Received all repository information")
 
-	for(const responsePromise of responses){
-		const response = await responsePromise
+	const errors:Error[] = []
+
+	for (let i = 0; i < maxAttempts; i ++){
+		try {
+			return await f()
+		}catch(e){
+			// i < maxAttempts - 1 && console.warn("Retrying a failed request")
+			// console.warn(e.errors.message)
+			errors.push(e)
+			await sleep(Math.pow(10, i + 1))
+		}
+	}
+
+	throw errors
+}
+
+/**
+ * This function fetches repositories and implements the proper error handling and retry logic.
+ */
+async function fetchingData(config: { targetOrganisation: string; }, accessToken:string ): Promise<{responses: GraphResponse[], failedCursors: string[]}>  {
+	let repoCursors: string[] = [];
+	const promises: Promise<void>[] = [];
+	try {
+
+		await retry(() => getOrgReposCursors(config, repoCursors, accessToken), 3);
+		repoCursors[0] = null;
+		const numOfPages = 1;
+		const responses: GraphResponse[] = [];
+
+		const failedCursors: string[] = [];
+
+		for (let curCursor = 0; curCursor < repoCursors.length; curCursor += numOfPages) {
+
+			promises.push(new Promise(async (resolve, reject) => {
+				try {
+					// get numOfPages repositories at a time
+					const res = await retry(() => queryDependencies(config.targetOrganisation, numOfPages, repoCursors[curCursor], accessToken) as Promise<GraphResponse>, 2);
+					responses.push(res);
+				} catch (e) {
+					const cursors = repoCursors.slice(curCursor, curCursor + numOfPages);
+					if (numOfPages === 1){
+						failedCursors.push(...cursors);
+					}
+					else{
+						// if there's a failure, get each repository individually
+						try {
+							const subPromises = cursors.map(c => retry(() => queryDependencies(config.targetOrganisation, 1, c, accessToken) as Promise<GraphResponse>, 3));
+							const res = await Promise.all(subPromises);
+							responses.push(...res);
+						} catch (eSub) {
+							//reject(new Error(`Unable to fetch single repositories due to ${eSub},\nwhich was caused by ${e}`))
+							//we don't want to reject, we want to keep partial responses
+							failedCursors.push(...cursors);
+						}
+					}
+				}
+				resolve();
+			}));
+		}
+
+		await Promise.all(promises);
+
+		if (failedCursors.length === promises.length) {
+			throw new Error("Couldn't fetch any repo :(");
+		}
+		else if (failedCursors.length > 0) {
+			console.warn(`Failed to retrieve ${failedCursors.length} cursors out of ${promises.length} cursors.\nfailed cursors : ${failedCursors}`);
+		}
+
+		return {responses, failedCursors}
+
+
+	} catch (e) {
+		throw new Error(`Nothing we can do about this :( ${e}`);
+	}
+}
+
+
+async function scrapeOrganisation(config: ReturnType<typeof loadConfig>, accessToken: string) {
+	let allDeps = new Map<string, Repository[]>()
+
+	const {responses, failedCursors} = await fetchingData(config, accessToken);
+
+	console.log("Fetched all repositories cursors");
+	// const responses = await Promise.all(promises);
+
+	for (const response of responses) {
+
 		for (const repo of response?.organization?.repositories?.edges) {
 			const ref = repo.node.mainBranch ? repo.node.mainBranch : repo.node.masterBranch;
 			if (ref == null) {
@@ -173,7 +278,7 @@ async function scrapeOrganisation(config: ReturnType<typeof loadConfig>, accessT
 		for (const repo of allRepoDeps) {
 			const name = repo.manifest.name
 
-			for(const [packageManager, depList] of repo.packageMap){
+			for (const [packageManager, depList] of repo.packageMap) {
 				for (const subRepo of depList) {
 					let deps: Map<string, string> = new Map();
 
@@ -189,7 +294,7 @@ async function scrapeOrganisation(config: ReturnType<typeof loadConfig>, accessT
 						dependencies: deps
 					}
 
-					if(!allDeps.has(packageManager)){
+					if (!allDeps.has(packageManager)) {
 						allDeps.set(packageManager, [])
 					}
 					allDeps.get(packageManager)?.push(rep)
@@ -221,6 +326,9 @@ export async function getJsonStructure(accessToken: string, config: Configuratio
 		toUse = ["NPM", "PYPI", "RUBYGEMS"]
 	}
 
+	// This is how you call queryRepoManifest
+	// const temp = await queryRepoManifest('kubernetes-client', 'java', "master", ['pom.xml','e2e/pom.xml'], accessToken)
+	// console.log(temp)
 	const startTime = Date.now();
 
 	// ==== START: Extracting dependencies from Github graphql response === //
