@@ -142,7 +142,7 @@ export async function queryGraphQL(query: string, param: any) : Promise<GraphQlQ
 }
 
 
-export async function queryRepositories(organisation: string, repoCursor: string | null) : Promise<GraphQlQueryResponseData> {
+export async function queryRepositories(organisation: string, numOfPages: number, repoCursor: string | null) : Promise<GraphQlQueryResponseData> {
 	let query: string =
 		`
 		query OrgRepos($organisation: String!) {
@@ -153,7 +153,7 @@ export async function queryRepositories(organisation: string, repoCursor: string
 			}
 			organization(login: $organisation) {
 			  id
-			  repositories(first: 100, orderBy: {field: PUSHED_AT, direction: DESC}) {
+			  repositories(first: $numOfPages, after: $repoCursor, orderBy: {field: PUSHED_AT, direction: DESC}) {
 				totalCount
 				edges {
 				  node {
@@ -174,7 +174,7 @@ export async function queryRepositories(organisation: string, repoCursor: string
 		`
 		let param = {
 			organisation: organisation,
-			numOfPages: 100,
+			numOfPages: numOfPages,
 			repoCursor: repoCursor,
 		}
 	return queryGraphQL(query, param)
