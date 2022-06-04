@@ -176,7 +176,7 @@ async function getOrgReposCursors(config: { targetOrganisation: string; }, repoC
 async function retry<T>(f:()=>Promise<T>, maxAttempts:number):Promise<T>{
 
 	if (maxAttempts > 3){
-		console.warn("Wait time for retrying a failed might exceed 10 seconds")
+		console.warn(`Wait time for retrying will be up to: ${Math.pow(10, maxAttempts)} milliseconds`)
 	}
 
 	const errors:Error[] = []
