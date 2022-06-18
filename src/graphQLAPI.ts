@@ -1,4 +1,3 @@
-import { getAccessToken } from "./utils";
 import {
 	GraphQlQueryResponseData,
 	GraphqlResponseError,
@@ -130,10 +129,10 @@ export type RepoManifest = {
 	}
 }
 
-export async function queryGraphQL(query: string, param: any) : Promise<GraphQlQueryResponseData> {
+export async function queryGraphQL(query: string, param: any, token: string) : Promise<GraphQlQueryResponseData> {
 	const graphqlWithAuth = graphql.defaults({
 	  headers: {
-		authorization: `token ${getAccessToken()}`,
+		authorization: `token ${token}`,
 		accept: `application/vnd.github.hawkgirl-preview+json`,
 	  },
 	});
@@ -142,11 +141,11 @@ export async function queryGraphQL(query: string, param: any) : Promise<GraphQlQ
 }
 
 
-export async function queryRepositories(organisation: string, numOfPages: number, repoCursor: string | null) : Promise<GraphQlQueryResponseData> {
+export async function queryRepositories(organisation: string, numOfPages: number, repoCursor: string | null, token: string) : Promise<GraphQlQueryResponseData> {
 	let query: string =
 		`
-		query OrgRepos($organisation: String!) {
-			rateLimit {
+		query orgRepos($organisation: String!, $numOfPages: Int!, $repoCursor: String) {
+		rateLimit {
 			  cost
 			  remaining
 			  resetAt
@@ -177,10 +176,10 @@ export async function queryRepositories(organisation: string, numOfPages: number
 			numOfPages: numOfPages,
 			repoCursor: repoCursor,
 		}
-	return queryGraphQL(query, param)
+	return queryGraphQL(query, param, token)
 
 }
-export async function queryDependencies(organisation: string, numOfPages, repoCursor: string | null) : Promise<GraphQlQueryResponseData> {
+export async function queryDependencies(organisation: string, numOfPages: number, repoCursor: string | null, token: string) : Promise<GraphQlQueryResponseData> {
 
   // refer to this on how to query different branches/ref,
   // https://stackoverflow.com/questions/51504760/how-to-get-all-repos-that-contain-a-certain-branch-on-githubs-graphql-api
@@ -259,7 +258,7 @@ export async function queryDependencies(organisation: string, numOfPages, repoCu
 	  dependencyLimit: 10
     }
 
-  return queryGraphQL(query, param)
+  return queryGraphQL(query, param, token)
 }
 
 /**
@@ -270,7 +269,7 @@ export async function queryDependencies(organisation: string, numOfPages, repoCu
  * @param manifestPaths manifest paths, must be relative to the repository root, must have a length of less than 10
  * @returns return at most 10 manifests objects
  */
-export async function queryRepoManifest(organisation: string, repoName: string, defaultBranch:string, manifestPaths: string[]) : Promise<GraphQlQueryResponseData> {
+export async function queryRepoManifest(organisation: string, repoName: string, defaultBranch:string, manifestPaths: string[], token: string) : Promise<GraphQlQueryResponseData> {
 
 	// https://graphql.org/learn/queries/#inline-fragments
 	// rev-parse compatible path
@@ -308,5 +307,5 @@ export async function queryRepoManifest(organisation: string, repoName: string, 
 		defaultBranch: defaultBranch,
 	  }
 
-	return queryGraphQL(query, param)
+	return queryGraphQL(query, param, token)
   }

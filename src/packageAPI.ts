@@ -1,6 +1,7 @@
+import { captureRejectionSymbol } from "events";
 import { TokenBucket } from "./rate-limiting/token-bucket";
 import { getPackageManifest } from "query-registry";
-import fetch from 'node-fetch';
+//import { fetch } from "node-fetch";
 
 export const APIParameters = {
 	// Github api allows 5000 reqs per hour. 5000/3600 = 1.388 reqs per second.
@@ -56,7 +57,15 @@ export type Repository = {
 //Gets the information for a single npm dependecy from the external service.
 export async function queryDependenyNpm(dependency: string, rateLimiter: PackageRateLimiter) {
 	await rateLimiter.npm.tokenBucket.waitForTokens(1)
-	const manifest = await getPackageManifest({ name: dependency })
+
+	let manifest
+	try{
+		manifest = await getPackageManifest({ name: dependency })
+	}
+	catch(e){
+		manifest = { version: "1.0.0"}
+		console.log(e)
+	}
 	return { name: dependency, data: { version: manifest.version } }
 }
 
@@ -135,8 +144,8 @@ export async function queryDependencyPyPI(dependency: string, rateLimiter: Packa
 	await rateLimiter.pypi.tokenBucket.waitForTokens(1)
 
 	//https://warehouse.pypa.io/api-reference/, they suggest that our user agent should mention who we are
-	const response = await fetch("https://pypi.org/pypi/" + dependency + "/json")
-	const data = await response.json() as { info: { version }, releases }
+	const response = await (await fetch("https://pypi.org/pypi/" + dependency + "/json")).json()
+	const data = response as { info: { version : any}, releases : any }
 
 	let bestVersion: string = "0"
 	let bestVersionObject: PythonPackageVersion = {epoch: 0, first: 0, rest: [], isPrerelease: true}
@@ -159,8 +168,8 @@ export async function queryDependencyRubyGems(dependency: string, rateLimiter: P
 	await rateLimiter.rubygems.tokenBucket.waitForTokens(1)
 
 	//https://guides.rubygems.org/rubygems-org-api/
-	const response = await fetch("https://rubygems.org/api/v1/versions/" + dependency + "/latest.json")
-	const data = await response.json() as { version: string }
+	const response = await (await fetch("https://rubygems.org/api/v1/versions/" + dependency + "/latest.json")).json()
+	const data = response as { version: string }
 
 	return { name: dependency, data: { version: data.version } }
 }
@@ -168,15 +177,15 @@ export async function queryDependencyRubyGems(dependency: string, rateLimiter: P
 //Calls the given API for all dependencies in the given list
 async function getDependencies(dependencies: string[], rateLimiter: PackageRateLimiter, queryFunc: any) {
 		let depMap: Map<string, { version: string }> = new Map()
-	
+
 		const depList = await Promise.all(
 			dependencies.map((dependency) => queryFunc(dependency, rateLimiter))
 		);
-	
+
 		for (const dependency of depList) {
 			depMap.set(dependency.name, dependency.data)
 		}
-	
+
 		return depMap
 	}
 

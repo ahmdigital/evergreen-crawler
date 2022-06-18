@@ -1,18 +1,8 @@
-import { Octokit, RestEndpointMethodTypes } from "@octokit/rest";
 import { TokenBucket } from "./rate-limiting/token-bucket";
-import { getAccessToken, loadConfig, sleep, writeFile } from "./utils";
+import { getAccessToken, loadConfig, writeFile, Configuration, sleep } from "./utils";
 import { generateDependencyTree } from "./outputData";
 import { getDependenciesNpm, getDependenciesPyPI, Repository, APIParameters, PackageRateLimiter, getDependenciesRubyGems, packageManagerFiles } from "./packageAPI";
 import { DependencyGraphDependency, GraphResponse, OrgRepos, RepoEdge, BranchManifest, UpperBranchManifest, queryDependencies, queryRepositories, queryRepoManifest, RepoManifest } from "./graphQLAPI"
-
-//var Map = require("es6-map");
-
-//Declaring a type alias for representing a repository in order to avoid this octokit mess
-type OctokitRepository =
-	RestEndpointMethodTypes["repos"]["listForOrg"]["response"]["data"][0];
-
-// Defining the GitHub API client.
-let octokit: Octokit;
 
 // returns list of repo objects
 function getRepos(response: GraphResponse) {
@@ -40,9 +30,9 @@ function getRepoDependencies(repo: BranchManifest) {
 
 	let repoDepObj: {
 		manifest: UpperBranchManifest, packageMap: Map<string, ReturnType<typeof blobPathDeps>[]>
-	} = { manifest: repo.repository as UpperBranchManifest, packageMap: null }
+	} = { manifest: repo.repository as UpperBranchManifest, packageMap: new Map() }
 
-	repoDepObj.packageMap = new Map()
+	// repoDepObj.packageMap = new Map()
 
 	const depGraphManifests = repo.repository.dependencyGraphManifests
 	const files = depGraphManifests.edges
@@ -68,11 +58,11 @@ function getRepoDependencies(repo: BranchManifest) {
 					if (depCount > 0) {
 						const dependencies = file.node.dependencies.nodes
 						const blobPathDep = blobPathDeps(subPathName, blobPath, version, dependencies)
-						repoDepObj.packageMap.get(packageManager.name).push(blobPathDep)
+						repoDepObj.packageMap.get(packageManager.name)?.push(blobPathDep)
 					} else {
 						// currently includes package.json files with no dependencies
 						const blobPathDep = blobPathDeps(subPathName, blobPath, version, [])
-						repoDepObj.packageMap.get(packageManager.name).push(blobPathDep)
+						repoDepObj.packageMap.get(packageManager.name)?.push(blobPathDep)
 					}
 				}
 			}
@@ -103,7 +93,7 @@ function mergeDependenciesLists(managerRepos: Map<string, Repository[]>): Map<st
 			for (const [name, version] of repo.dependencies) {
 				//console.log("\t" + name)
 				if (!deps.has(packageManager)) { deps.set(packageManager, new Set()) }
-				deps.get(packageManager).add(name);
+				deps.get(packageManager)?.add(name);
 			}
 		}
 	}
@@ -125,23 +115,21 @@ const MINIMUM_GITHUB_POINTS = 10;
  * This function performs pre-flight requests to retrieve a list of cursors to be used in \\TODO: insert function name here
  * !NOTE: the output will be saved inside the input repoCursors[] list. This allows us to continue from the last cursor in case of a crash.
  */
-async function getOrgReposCursors(config: { targetOrganisation: string; }, repoCursors:string[]): Promise<string[]> {
-
-	//let repoCursors: string[] = [];
+async function getOrgReposCursors(config: { targetOrganisation: string; }, repoCursors:(string | null)[], accessToken: string): Promise<(string | null)[]> {
 
 	const numOfPages = 100
 	let hasNextPage = false;
 	// let repoCursor = null;
 
 	do {
-		let lastCursor:string = null
+		let lastCursor: string | null = null
 		// the last cursor in a call is always equivalent to endCursor, so we can use it for the next calls
 		if (repoCursors.length !== 0) {
 			lastCursor = repoCursors[repoCursors.length - 1]
 		}
 
 
-		const response = await queryRepositories(config.targetOrganisation, numOfPages, lastCursor) as OrgRepos;
+		const response = await queryRepositories(config.targetOrganisation, numOfPages, lastCursor, accessToken) as OrgRepos;
 
 		for (const repo of response.organization.repositories.edges) {
 			// TODO: yield repo.cursor
@@ -185,8 +173,14 @@ async function retry<T>(f:()=>Promise<T>, maxAttempts:number):Promise<T>{
 			return await f()
 		}catch(e){
 			// i < maxAttempts - 1 && console.warn("Retrying a failed request")
-			console.warn(e.errors.message)
-			errors.push(e)
+			// console.warn(e.errors.message)
+			if(e instanceof Error){
+				errors.push(e)
+			} else{
+				console.log("Error of unknown type in retry:")
+				console.log(e)
+				errors.push(new Error())
+			}
 			await sleep(Math.pow(10, i + 1))
 		}
 	}
@@ -197,24 +191,24 @@ async function retry<T>(f:()=>Promise<T>, maxAttempts:number):Promise<T>{
 /**
  * This function fetches repositories and implements the proper error handling and retry logic.
  */
-async function fetchingData(config: { targetOrganisation: string; }): Promise<{responses: GraphResponse[], failedCursors: string[]}>  {
-	let repoCursors: string[] = [];
+async function fetchingData(config: { targetOrganisation: string; }, accessToken:string ): Promise<{responses: GraphResponse[], failedCursors: (string | null)[]}>  {
+	let repoCursors: (string | null)[] = [];
 	const promises: Promise<void>[] = [];
 	try {
 
-		await retry(() => getOrgReposCursors(config, repoCursors), 3);
+		await retry(() => getOrgReposCursors(config, repoCursors, accessToken), 3);
 		repoCursors[0] = null;
 		const numOfPages = 1;
 		const responses: GraphResponse[] = [];
 
-		const failedCursors: string[] = [];
+		const failedCursors: (string | null)[] = [];
 
 		for (let curCursor = 0; curCursor < repoCursors.length; curCursor += numOfPages) {
 
 			promises.push(new Promise(async (resolve, reject) => {
 				try {
 					// get numOfPages repositories at a time
-					const res = await retry(() => queryDependencies(config.targetOrganisation, numOfPages, repoCursors[curCursor]) as Promise<GraphResponse>, 2);
+					const res = await retry(() => queryDependencies(config.targetOrganisation, numOfPages, repoCursors[curCursor], accessToken) as Promise<GraphResponse>, 2);
 					responses.push(res);
 				} catch (e) {
 					const cursors = repoCursors.slice(curCursor, curCursor + numOfPages);
@@ -224,7 +218,7 @@ async function fetchingData(config: { targetOrganisation: string; }): Promise<{r
 					else{
 						// if there's a failure, get each repository individually
 						try {
-							const subPromises = cursors.map(c => retry(() => queryDependencies(config.targetOrganisation, 1, c) as Promise<GraphResponse>, 3));
+							const subPromises = cursors.map(c => retry(() => queryDependencies(config.targetOrganisation, 1, c, accessToken) as Promise<GraphResponse>, 3));
 							const res = await Promise.all(subPromises);
 							responses.push(...res);
 						} catch (eSub) {
@@ -259,7 +253,7 @@ async function fetchingData(config: { targetOrganisation: string; }): Promise<{r
 async function scrapeOrganisation(config: ReturnType<typeof loadConfig>, accessToken: string) {
 	let allDeps = new Map<string, Repository[]>()
 
-	const {responses, failedCursors} = await fetchingData(config);
+	const {responses, failedCursors} = await fetchingData(config, accessToken);
 
 	console.log("Fetched all repositories cursors");
 	// const responses = await Promise.all(promises);
@@ -309,7 +303,7 @@ async function scrapeOrganisation(config: ReturnType<typeof loadConfig>, accessT
 					if (!allDeps.has(packageManager)) {
 						allDeps.set(packageManager, [])
 					}
-					allDeps.get(packageManager).push(rep)
+					allDeps.get(packageManager)?.push(rep)
 				}
 			}
 		}
@@ -323,23 +317,23 @@ async function scrapeOrganisation(config: ReturnType<typeof loadConfig>, accessT
 	return allDeps
 }
 
-//Main function
-async function main() {
-	const accessToken = getAccessToken()
-	const config = loadConfig()
-
+export async function getJsonStructure(accessToken: string, config: Configuration, toUse: string[] | null = null){
 	console.log("Configuration:")
 	console.log(config)
 	console.log(config.targetOrganisation)
 
-	const rateLimiter: PackageRateLimiter = {
+	let rateLimiter: PackageRateLimiter = {
 		npm: { tokenBucket: new TokenBucket(1000, APIParameters.npm.rateLimit, APIParameters.npm.intialTokens) },
 		pypi: { tokenBucket: new TokenBucket(1000, APIParameters.pypi.rateLimit, APIParameters.pypi.intialTokens) },
 		rubygems: { tokenBucket: new TokenBucket(1000, APIParameters.rubygems.rateLimit, APIParameters.rubygems.intialTokens) },
 	};
 
+	if(toUse == null){
+		toUse = ["NPM", "PYPI", "RUBYGEMS"]
+	}
+
 	// This is how you call queryRepoManifest
-	// const temp = await queryRepoManifest('kubernetes-client', 'java', "master", ['pom.xml','e2e/pom.xml'])
+	// const temp = await queryRepoManifest('kubernetes-client', 'java', "master", ['pom.xml','e2e/pom.xml'], accessToken)
 	// console.log(temp)
 	const startTime = Date.now();
 
@@ -351,15 +345,17 @@ async function main() {
 	const packageDeps = mergeDependenciesLists(allDeps);
 
 	let depDataMap: Map<string, Map<string, {version: string}>> = new Map()
-	if(packageDeps.has("NPM")){ depDataMap.set("NPM", await getDependenciesNpm(packageDeps.get("NPM"), rateLimiter)) }
-	if(packageDeps.has("PYPI")){ depDataMap.set("PYPI", await getDependenciesPyPI(packageDeps.get("PYPI"), rateLimiter)) }
-	if(packageDeps.has("RUBYGEMS")){ depDataMap.set("RUBYGEMS", await getDependenciesRubyGems(packageDeps.get("RUBYGEMS"), rateLimiter)) }
+	if(toUse.includes("NPM") && packageDeps.has("NPM")){ depDataMap.set("NPM", await getDependenciesNpm(packageDeps.get("NPM") as string[], rateLimiter)) }
+	if(toUse.includes("PYPI") && packageDeps.has("PYPI")){ depDataMap.set("PYPI", await getDependenciesPyPI(packageDeps.get("PYPI") as string[], rateLimiter)) }
+	if(toUse.includes("RUBYGEMS") && packageDeps.has("RUBYGEMS")){ depDataMap.set("RUBYGEMS", await getDependenciesRubyGems(packageDeps.get("RUBYGEMS") as string[], rateLimiter)) }
 
 	//Wait for all requests to finish
 	console.log("Waiting for all requests to finish");
 	await Promise.all([
 		//rateLimiter.Github.tokenBucket.waitForShorterQueue(100),
 		rateLimiter.npm.tokenBucket.waitForShorterQueue(100),
+		rateLimiter.pypi.tokenBucket.waitForShorterQueue(100),
+		rateLimiter.rubygems.tokenBucket.waitForShorterQueue(100),
 	]);
 
 	//Print the total time
@@ -370,17 +366,24 @@ async function main() {
 
 	jsonResult += "{"
 	jsonResult += "\"npm\": ["
-	jsonResult += !allDeps.has("NPM") ? "" : generateDependencyTree(allDeps.get("NPM"), depDataMap.get("NPM"))
+	jsonResult += !(toUse.includes("NPM") && allDeps.has("NPM")) ? "" : generateDependencyTree(allDeps.get("NPM") as Repository[], depDataMap.get("NPM") as any)
 	jsonResult += "], "
 	jsonResult += "\"PyPI\": ["
-	jsonResult += !allDeps.has("PYPI") ? "" : generateDependencyTree(allDeps.get("PYPI"), depDataMap.get("PYPI"))
+	jsonResult += !(toUse.includes("PYPI") && allDeps.has("PYPI")) ? "" : generateDependencyTree(allDeps.get("PYPI") as Repository[], depDataMap.get("PYPI") as any)
 	jsonResult += "],"
 	jsonResult += "\"RubyGems\": ["
-	jsonResult += !allDeps.has("RUBYGEMS") ? "" : generateDependencyTree(allDeps.get("RUBYGEMS"), depDataMap.get("RUBYGEMS"))
+	jsonResult += !(toUse.includes("RUBYGEMS") && allDeps.has("RUBYGEMS")) ? "" : generateDependencyTree(allDeps.get("RUBYGEMS") as Repository[], depDataMap.get("RUBYGEMS") as any)
 	jsonResult += "]"
 	jsonResult += "}"
 
-	writeFile("cachedData.json", jsonResult);
+	return jsonResult
 }
 
-main();
+//Main function
+async function main() {
+	const accessToken = getAccessToken()
+	const config = loadConfig()
+	writeFile("cachedData.json", await getJsonStructure(accessToken, config));
+}
+
+// main();
