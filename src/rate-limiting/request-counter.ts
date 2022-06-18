@@ -5,7 +5,7 @@ export class RequestCounter{
 
 	private requests:number
 	private totalRequests:number
-	private timer:NodeJS.Timer
+	private timer:NodeJS.Timer | undefined
 	private interval:number
 	private name:string
 
@@ -16,6 +16,8 @@ export class RequestCounter{
 		this.interval = interval
 		this.name = name
 		this.totalRequests = 0
+		this.requests = 0
+		this.timer = undefined
 		this.resume()
 	}
 
