@@ -11,13 +11,13 @@ The current goal is to have the crawler run onn the the frontend
 - [x] Pagination
 - [x] Rate Limiter for GitHub
 - [ ] Default Branch
-- [o] Error handling
-  - [ ] invalid or expired token
+- [x] Error handling
+  - [x] invalid or expired token
 - [ ] Fetch all dependencies, currently cut off limit is 250 for each manifest file
-- [ ] Dedicated GraphQL file
-- [ ] Slack alert if a once a dependency is two majors behind
+- [ ] Slack alert when a dependency is two majors behind
 `
 #### Potential
+- [ ] Dedicated GraphQL file
 - [ ] Store results into into a database
 
 ## Package Managers support
