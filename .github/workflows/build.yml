@@ -5,6 +5,9 @@ name: Build
 
 on:
   workflow_call:
+    secrets:
+      NPM_TOKEN:
+        required: true
 
 jobs:
   build:
@@ -16,6 +19,7 @@ jobs:
       - uses: actions/setup-node@v3
         with:
           node-version: "16"
+          registry-url: "https://registry.npmjs.org"
 
       - name: Install npm dependencies
         run: npm ci
@@ -25,3 +29,8 @@ jobs:
 
       - name: Test
         run: npm run test
+
+      - name: Publish
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

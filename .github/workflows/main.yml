@@ -58,3 +58,5 @@ jobs:
 
   build:
     uses: ./.github/workflows/build.yml
+    secrets:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
