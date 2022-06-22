@@ -279,6 +279,7 @@ export async function queryRepoManifest(organisation: string, repoName: string, 
 
 	if (manifestPaths.length > 10) {
 		manifestPaths = manifestPaths.slice(0, 10)
+		console.warn("Slicing only the first 10 manifests")
 	}
 
 	let query: string =

@@ -3,6 +3,7 @@ import { getAccessToken, loadConfig, writeFile, Configuration, sleep } from "./u
 import { generateDependencyTree } from "./outputData";
 import { getDependenciesNpm, getDependenciesPyPI, Repository, APIParameters, PackageRateLimiter, getDependenciesRubyGems, packageManagerFiles } from "./packageAPI";
 import { DependencyGraphDependency, GraphResponse, OrgRepos, RepoEdge, BranchManifest, UpperBranchManifest, queryDependencies, queryRepositories, queryRepoManifest, RepoManifest } from "./graphQLAPI"
+import { json } from "stream/consumers";
 
 // returns list of repo objects
 function getRepos(response: GraphResponse) {
@@ -279,6 +280,26 @@ async function scrapeOrganisation(config: ReturnType<typeof loadConfig>, accessT
 		}
 
 		const repoList = getRepos(response);
+
+
+		for (const repo of repoList) {
+			const branchName = repo.repository.defaultBranchRef.name
+			const orgName = config.targetOrganisation
+			const repoName = repo.repository.name
+			let files : string[] = []
+			// for (cost file in repo.repository.dependencyGraphManifests.nodes.filename)
+			const manifest = await queryRepoManifest(orgName, repoName, branchName, ['package.json', ], accessToken)
+			console.log(manifest)
+			if (manifest.repository.manifest1 != null) {
+				let res = JSON.parse(manifest.repository.manifest1.text)
+				const packageName = res.name
+				const packageVersion = res.version
+				console.log(`${packageName}, ${packageVersion}`)
+			}
+		}
+
+
+
 		const allRepoDeps = getAllRepoDeps(repoList);
 
 		for (const repo of allRepoDeps) {
@@ -333,7 +354,7 @@ export async function getJsonStructure(accessToken: string, config: Configuratio
 	}
 
 	// This is how you call queryRepoManifest
-	// const temp = await queryRepoManifest('kubernetes-client', 'java', "master", ['pom.xml','e2e/pom.xml'], accessToken)
+	// const temp = await queryRepoManifest('kubernetes-client', 'javascript', "master", ['package.json','src/gen/package.json'], accessToken)
 	// console.log(temp)
 	const startTime = Date.now();
 
