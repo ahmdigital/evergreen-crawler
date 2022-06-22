@@ -288,13 +288,16 @@ async function scrapeOrganisation(config: ReturnType<typeof loadConfig>, accessT
 			const repoName = repo.repository.name
 			let files : string[] = []
 			// for (cost file in repo.repository.dependencyGraphManifests.nodes.filename)
-			const manifest = await queryRepoManifest(orgName, repoName, branchName, ['package.json', ], accessToken)
-			console.log(manifest)
-			if (manifest.repository.manifest1 != null) {
-				let res = JSON.parse(manifest.repository.manifest1.text)
-				const packageName = res.name
-				const packageVersion = res.version
-				console.log(`${packageName}, ${packageVersion}`)
+			const manifests = await queryRepoManifest(orgName, repoName, branchName, ['package.json', 'test/package.json'], accessToken)
+			console.log(manifests)
+			for (const manifest of manifests) {
+				if (manifest != null) {
+					let res = JSON.parse(manifest)
+					console.log(res)
+					// const packageName = res.name
+					// const packageVersion = res.version
+					// console.log(`${packageName}, ${packageVersion}`)
+				}
 			}
 		}
 
@@ -354,8 +357,8 @@ export async function getJsonStructure(accessToken: string, config: Configuratio
 	}
 
 	// This is how you call queryRepoManifest
-	// const temp = await queryRepoManifest('kubernetes-client', 'javascript', "master", ['package.json','src/gen/package.json'], accessToken)
-	// console.log(temp)
+	const temp = await queryRepoManifest('kubernetes-client', 'javascript', "master", ['package.json','src/gen/package.json'], accessToken)
+	console.log(temp)
 	const startTime = Date.now();
 
 	// ==== START: Extracting dependencies from Github graphql response === //
@@ -407,4 +410,4 @@ async function main() {
 	writeFile("cachedData.json", await getJsonStructure(accessToken, config));
 }
 
-// main();
+main();
