@@ -21,12 +21,74 @@ function getRepos(response: GraphResponse) {
 	return filteredRepos
 }
 
+async function getRealNames(repoList: ReturnType<typeof getAllRepoDeps>, config: ReturnType<typeof loadConfig>, accessToken: string, tokenBucket: TokenBucket){
+	for (const repo of repoList) {
+
+		let pathStrings: string[] = []
+		for (const [packageManager, depList] of repo.packageMap) {
+			if(packageManager == "RUBYGEMS"){ continue }
+			for (const subRepo of depList) {
+				pathStrings.push(subRepo.subPath)
+			}
+		}
+
+		let realData: any[] = []
+		const branchName = repo.manifest.defaultBranchRef.name
+		const orgName = config.targetOrganisation
+		const repoName = repo.manifest.name
+		console.log("Trying to query repo: " + repoName)
+
+		for(let i = 0; i < pathStrings.length; i+=10){
+			//We have to skip this as we keep hittinbg a secondary limit
+			continue
+
+			let size = Math.min(10, pathStrings.length - i)
+			console.log("trying " + size)
+			await tokenBucket.waitForTokens(size)//['package.json']
+			const manifests = await queryRepoManifest(orgName, repoName, branchName, pathStrings.slice(i, Math.min(i + 10, pathStrings.length)), accessToken)
+			for (const manifest of manifests) {
+				if (manifest != null) {
+					try{
+						let res = JSON.parse(manifest)
+						const packageName = res.name
+						const packageVersion = res.version
+						console.log(`${packageName}, ${packageVersion}`)
+						realData.push({name: packageName, version: packageVersion})
+					} catch{
+						console.log(manifest)
+						realData.push({name: "", version: ""})
+					}
+				}
+			}
+		}
+
+		let i = 0
+		for (const [packageManager, depList] of repo.packageMap) {
+			if(packageManager == "RUBYGEMS"){
+				for (const subRepo of depList) {
+					//TODO: Get name from the X.gemspec file in the same repo, as X is the name we need 
+				}
+			} else {
+				for (const subRepo of depList) {
+					try{
+						subRepo.realName = realData[i].name
+						subRepo.version = realData[i].version
+						i++
+					} catch{
+						console.log(realData)
+						console.log(i)
+					}
+				}
+			}
+		}		
+	}
+}
+
 // get dependencies of a repo obj, used by function getAllRepoDeps(repoList)
 // returns object with repo name and list of blob paths ending with package.json and blob path's dependencies
 function getRepoDependencies(repo: BranchManifest) {
-
-	function blobPathDeps(subPath: string, blobPath: string, version: string, deps: DependencyGraphDependency[]) {
-		return { subPath: subPath, blobPath: blobPath, version: version, dependencies: deps }
+	function blobPathDeps(subPath: string, subPathName: string, blobPath: string, deps: DependencyGraphDependency[] ) {
+		return { subPath: subPath, subPathName: subPathName, blobPath: blobPath, version: "", dependencies: deps, realName: ""}
 	}
 
 	let repoDepObj: {
@@ -49,7 +111,6 @@ function getRepoDependencies(repo: BranchManifest) {
 				if (subPath.endsWith(ext)) {
 					const subPathName = subPath.replace(ext, "")
 					console.log(blobPath + ", " + subPathName + ext)
-					const version = ""//file.node.version
 					const depCount = file.node.dependencies.totalCount
 
 					if (!repoDepObj.packageMap.has(packageManager.name)) {
@@ -58,11 +119,11 @@ function getRepoDependencies(repo: BranchManifest) {
 
 					if (depCount > 0) {
 						const dependencies = file.node.dependencies.nodes
-						const blobPathDep = blobPathDeps(subPathName, blobPath, version, dependencies)
+						const blobPathDep = blobPathDeps(subPath, subPathName, blobPath, dependencies)
 						repoDepObj.packageMap.get(packageManager.name)?.push(blobPathDep)
 					} else {
 						// currently includes package.json files with no dependencies
-						const blobPathDep = blobPathDeps(subPathName, blobPath, version, [])
+						const blobPathDep = blobPathDeps(subPath, subPathName, blobPath, [])
 						repoDepObj.packageMap.get(packageManager.name)?.push(blobPathDep)
 					}
 				}
@@ -259,6 +320,8 @@ async function scrapeOrganisation(config: ReturnType<typeof loadConfig>, accessT
 	console.log("Fetched all repositories cursors");
 	// const responses = await Promise.all(promises);
 
+	const tokenBucket = new TokenBucket(1000, 10.0/60.0, 1)
+
 	for (const response of responses) {
 
 		for (const repo of response?.organization?.repositories?.edges) {
@@ -281,29 +344,9 @@ async function scrapeOrganisation(config: ReturnType<typeof loadConfig>, accessT
 
 		const repoList = getRepos(response);
 
-
-		for (const repo of repoList) {
-			const branchName = repo.repository.defaultBranchRef.name
-			const orgName = config.targetOrganisation
-			const repoName = repo.repository.name
-			let files : string[] = []
-			// for (cost file in repo.repository.dependencyGraphManifests.nodes.filename)
-			const manifests = await queryRepoManifest(orgName, repoName, branchName, ['package.json', 'test/package.json'], accessToken)
-			console.log(manifests)
-			for (const manifest of manifests) {
-				if (manifest != null) {
-					let res = JSON.parse(manifest)
-					console.log(res)
-					// const packageName = res.name
-					// const packageVersion = res.version
-					// console.log(`${packageName}, ${packageVersion}`)
-				}
-			}
-		}
-
-
-
 		const allRepoDeps = getAllRepoDeps(repoList);
+
+		await getRealNames(allRepoDeps, config, accessToken, tokenBucket);
 
 		for (const repo of allRepoDeps) {
 			const name = repo.manifest.name
@@ -317,12 +360,16 @@ async function scrapeOrganisation(config: ReturnType<typeof loadConfig>, accessT
 					}
 
 					let rep: Repository = {
-						name: name + (subRepo.subPath == "" ? "" : "(" + subRepo.subPath + ")"),
+						name: subRepo.realName,
+						oldName: name + (subRepo.subPath == "" ? "" : "(" + subRepo.subPath + ")"),
 						version: subRepo.version,
 						link: repo.manifest.url,
 						isArchived: repo.manifest.isArchived,
 						dependencies: deps
 					}
+
+					//TODO: When we fix getting the real names, remove this
+					rep.name = rep.name == "" ? rep.oldName : rep.name;
 
 					if (!allDeps.has(packageManager)) {
 						allDeps.set(packageManager, [])
@@ -331,11 +378,6 @@ async function scrapeOrganisation(config: ReturnType<typeof loadConfig>, accessT
 				}
 			}
 		}
-
-		// hasNextPage = response?.organization?.repositories?.pageInfo?.hasNextPage
-		// if (hasNextPage) {
-		// 	repoCursor = response?.organization?.repositories?.pageInfo?.endCursor
-		// }
 	}
 
 	return allDeps
@@ -356,9 +398,6 @@ export async function getJsonStructure(accessToken: string, config: Configuratio
 		toUse = ["NPM", "PYPI", "RUBYGEMS"]
 	}
 
-	// This is how you call queryRepoManifest
-	const temp = await queryRepoManifest('kubernetes-client', 'javascript', "master", ['package.json','src/gen/package.json'], accessToken)
-	console.log(temp)
 	const startTime = Date.now();
 
 	// ==== START: Extracting dependencies from Github graphql response === //
@@ -410,4 +449,9 @@ async function main() {
 	writeFile("cachedData.json", await getJsonStructure(accessToken, config));
 }
 
-main();
+if (require.main === module) {
+    console.log("Running standalone");
+	main();
+} else {
+	//Being called as a module
+}

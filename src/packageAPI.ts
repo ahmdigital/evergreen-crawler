@@ -29,7 +29,7 @@ export const APIParameters = {
 export const packageManagerFiles = [
 	{ name: "NPM", extensions: ["package.json"] },
 	{ name: "PYPI", extensions: ["requirements.txt"] },
-	{ name: "RUBYGEMS", extensions: ["Gemfile"] },
+	{ name: "RUBYGEMS", extensions: ["Gemfile", ".gemspec"] },
 ]
 
 //Ratelimiter is a POJO that contains a TokenBuckets and RequestCounters for each API source.
@@ -48,6 +48,7 @@ export type PackageRateLimiter = {
 
 export type Repository = {
 	name: string,
+	oldName: string,
 	version: string,
 	link: string,
 	isArchived: boolean,
