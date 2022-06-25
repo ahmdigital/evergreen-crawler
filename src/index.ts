@@ -2,8 +2,7 @@ import { TokenBucket } from "./rate-limiting/token-bucket";
 import { getAccessToken, loadConfig, writeFile, Configuration, sleep } from "./utils";
 import { generateDependencyTree } from "./outputData";
 import { getDependenciesNpm, getDependenciesPyPI, Repository, APIParameters, PackageRateLimiter, getDependenciesRubyGems, packageManagerFiles } from "./packageAPI";
-import { DependencyGraphDependency, GraphResponse, OrgRepos, RepoEdge, BranchManifest, UpperBranchManifest, queryDependencies, queryRepositories, queryRepoManifest, RepoManifest } from "./graphQLAPI"
-import { json } from "stream/consumers";
+import { DependencyGraphDependency, GraphResponse, OrgRepos, RepoEdge, BranchManifest, UpperBranchManifest, queryDependencies, queryRepositories, queryRepoManifest, RepoManifest, queryRepoManifestRest } from "./graphQLAPI"
 
 // returns list of repo objects
 function getRepos(response: GraphResponse) {
@@ -23,7 +22,6 @@ function getRepos(response: GraphResponse) {
 
 async function getRealNames(repoList: ReturnType<typeof getAllRepoDeps>, config: ReturnType<typeof loadConfig>, accessToken: string, tokenBucket: TokenBucket){
 	for (const repo of repoList) {
-
 		let pathStrings: string[] = []
 		for (const [packageManager, depList] of repo.packageMap) {
 			if(packageManager == "RUBYGEMS"){ continue }
@@ -32,55 +30,56 @@ async function getRealNames(repoList: ReturnType<typeof getAllRepoDeps>, config:
 			}
 		}
 
-		let realData: any[] = []
+		let realDataPromises: any[] = []
 		const branchName = repo.manifest.defaultBranchRef.name
 		const orgName = config.targetOrganisation
 		const repoName = repo.manifest.name
 		console.log("Trying to query repo: " + repoName)
 
-		for(let i = 0; i < pathStrings.length; i+=10){
-			//We have to skip this as we keep hittinbg a secondary limit
-			continue
-
-			let size = Math.min(10, pathStrings.length - i)
-			console.log("trying " + size)
-			await tokenBucket.waitForTokens(size)//['package.json']
-			const manifests = await queryRepoManifest(orgName, repoName, branchName, pathStrings.slice(i, Math.min(i + 10, pathStrings.length)), accessToken)
-			for (const manifest of manifests) {
-				if (manifest != null) {
-					try{
-						let res = JSON.parse(manifest)
-						const packageName = res.name
-						const packageVersion = res.version
-						console.log(`${packageName}, ${packageVersion}`)
-						realData.push({name: packageName, version: packageVersion})
-					} catch{
-						console.log(manifest)
-						realData.push({name: "", version: ""})
-					}
+		for(let i = 0; i < pathStrings.length; i+=1){
+			realDataPromises.push(queryRepoManifestRest(orgName, repoName, pathStrings[i], accessToken, tokenBucket)
+				.then(content => {
+					const name = content?.name || ""
+					const version = content?.version || ""
+					return { name: name,
+						 version: version
+						}
 				}
-			}
+			))
+		}
+
+		await Promise.allSettled(realDataPromises)
+		const realData: { name: string, version:string}[] = []
+		for (const d of realDataPromises){
+			realData.push(await d.then(
+				function name(params:any) {
+					return {name: params.name, version: params.version}
+				},
+				function name(params:any) {
+					return {name: "", version: ""}
+				}
+			))
 		}
 
 		let i = 0
 		for (const [packageManager, depList] of repo.packageMap) {
 			if(packageManager == "RUBYGEMS"){
 				for (const subRepo of depList) {
-					//TODO: Get name from the X.gemspec file in the same repo, as X is the name we need 
+					//TODO: Get name from the X.gemspec file in the same repo, as X is the name we need
 				}
 			} else {
 				for (const subRepo of depList) {
 					try{
 						subRepo.realName = realData[i].name
 						subRepo.version = realData[i].version
-						i++
 					} catch{
 						console.log(realData)
 						console.log(i)
 					}
+					i++
 				}
 			}
-		}		
+		}
 	}
 }
 
@@ -320,7 +319,7 @@ async function scrapeOrganisation(config: ReturnType<typeof loadConfig>, accessT
 	console.log("Fetched all repositories cursors");
 	// const responses = await Promise.all(promises);
 
-	const tokenBucket = new TokenBucket(1000, 10.0/60.0, 1)
+	const tokenBucket = new TokenBucket(1000, 60.0/60.0, 1)
 
 	for (const response of responses) {
 
