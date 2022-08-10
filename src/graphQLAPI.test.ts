@@ -4,67 +4,95 @@ import {
   queryDependencies,
 } from "./graphQLAPI";
 import { getAccessToken } from "./utils";
+import { scrapeOrganisation, mergeDependenciesLists, getJsonStructure} from "./index";
 import { TokenBucket } from "./rate-limiting/token-bucket";
 
 const accessToken = getAccessToken();
 
-// TODO: update this page once the mock organisation card is completed
 
 // beforeEach(async () => accessToken())
 
-// one test to check if token is valid
-
 test("test the content of a repository javascript manifest", async () => {
-  let orgName = "ahm-monash";
-  let repoName = "crawler";
+  let orgName = "evergreen-test-environment";
+  let repoName = "test-dependencies";
   let pathStrings = "package.json";
-  let token = accessToken;
 
   const tokenBucket = new TokenBucket(1000, 60.0 / 60.0, 1);
   let res = await queryRepoManifestRest(
     orgName,
     repoName,
+
     pathStrings,
-    token,
+    accessToken,
     tokenBucket
   );
 
-  expect(res.name).toBe("evergreen-org-crawler");
-  expect(res.version).toBe("0.0.4");
+  expect(res.name).toBe("test-dependencies");
+  expect(res.version).toBe("1.0.0");
 });
 
 test("test fetching repositories from an organisation", async () => {
-  let organisation = "ahm-monash";
+  let organisation = "evergreen-test-environment";
   let numOfPages = 100;
   let repoCursor = null;
-  let token = accessToken;
 
   let res = await queryRepositories(
     organisation,
     numOfPages,
     repoCursor,
-    token
+    accessToken
   );
 
-  expect(res.organization.repositories.totalCount).toBe(4);
+  expect(res.organization.repositories.totalCount).toBe(10);
 });
+
 
 describe("Dependencies", () => {
   jest.retryTimes(2);
   test("test fetching dependencies of a repository", async () => {
 
-    let organisation = "ahm-monash";
+    let organisation = "evergreen-test-environment";
     let numOfPages = 1;
     let repoCursor = null;
-    let token = accessToken;
 
     let res = await queryDependencies(
       organisation,
       numOfPages,
       repoCursor,
-      token
-    );
+      accessToken
+      );
+      // console.log(res.organization.repositories.edges[0].node.mainBranch.repository)
 
-    expect(res.organization.repositories.edges[0].node.mainBranch.repository.dependencyGraphManifests.totalCount).toBe(7);
-  });
+      expect(res.organization.repositories.edges[0].node.mainBranch.repository.dependencyGraphManifests.totalCount).toBe(6);
+    });
+});
+
+test("test fetching repositories from an organisation", async () => {
+	let organisation = "evergreen-test-environment";
+
+	const allDeps = await scrapeOrganisation({targetOrganisation: organisation}, accessToken)
+	const packageDeps = mergeDependenciesLists(allDeps);
+	console.log(packageDeps)
+	expect(packageDeps.get("NPM")?.length).toBe(11);
+	expect(packageDeps.get("PYPI")?.length).toBe(18);
+	// expect(packageDeps.get("RUBYGEMS")?.length).toBe(0);
+});
+
+test("test overall output of the crawler library", async () => {
+	let organisation = "evergreen-test-environment";
+
+	const data = JSON.parse(await getJsonStructure(accessToken, {targetOrganisation: organisation}))
+  if (data.npm.length > 0){
+    expect(Object.keys(data.npm[0]).length).toBe(15);
+    expect(data.npm[1].length).toBe(4);
+
+  }
+  if (data.PyPI.length > 0){
+    expect(Object.keys(data.PyPI[0]).length).toBe(19);
+	  expect(data.PyPI[1].length).toBe(1);
+  }
+  if (data.RubyGems.length > 0){
+    expect(Object.keys(data.RubyGems[0]).length).toBe(0);
+	  expect(data.RubyGems[1].length).toBe(0);
+  }
 });

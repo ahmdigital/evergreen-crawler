@@ -145,7 +145,7 @@ function getAllRepoDeps(repoList: BranchManifest[]) {
 	return all_dependencies
 }
 
-function mergeDependenciesLists(managerRepos: Map<string, Repository[]>): Map<string, string[]> {
+export function mergeDependenciesLists(managerRepos: Map<string, Repository[]>): Map<string, string[]> {
 	let deps: Map<string, Set<string>> = new Map()
 
 	for (const [packageManager, repos] of managerRepos) {
@@ -311,7 +311,7 @@ async function fetchingData(config: { targetOrganisation: string; }, accessToken
 }
 
 
-async function scrapeOrganisation(config: ReturnType<typeof loadConfig>, accessToken: string) {
+export async function scrapeOrganisation(config: ReturnType<typeof loadConfig>, accessToken: string) {
 	let allDeps = new Map<string, Repository[]>()
 
 	const {responses, failedCursors} = await fetchingData(config, accessToken);

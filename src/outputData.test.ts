@@ -17,7 +17,7 @@ test("Test dependency list JSON", async () => {
 	depData.set(5, {version: "1.4.5", link: "www.%23%26%2C.com", internal: true, archived: false})
 	depNameMap.set("w", 6);
 	depData.set(6, {version: "8.4.19", link: "www.w.com", internal: false, archived: true})
-	
+
 	const res = JSON.parse(depDataToJson(depNameMap, depData))
 
 	console.log(res)
@@ -34,7 +34,7 @@ test("Test dependency list JSON", async () => {
 	expect(res).toStrictEqual(expected)
 })
 
-test("Test dependecy map JSON", async () => {
+test("Test dependency map JSON", async () => {
 	let reps: Repository[] = [
 		{
 			name: "x",
@@ -61,7 +61,7 @@ test("Test dependecy map JSON", async () => {
 	]
 
 	let deps: Map<string, {version: string}> = new Map([["w", {version: "9.20.4"}]]);
-	
+
 	const res = JSON.parse("{ \"data\": [" + generateDependencyTree(reps, deps) + "]}")
 
 	console.log(res.toString())
