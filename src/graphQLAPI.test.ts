@@ -7,8 +7,8 @@ import { getAccessToken } from "./utils";
 import { scrapeOrganisation, mergeDependenciesLists, getJsonStructure} from "./index";
 import { TokenBucket } from "./rate-limiting/token-bucket";
 
+jest.setTimeout(60*1000)
 const accessToken = getAccessToken();
-
 
 // beforeEach(async () => accessToken())
 
@@ -43,7 +43,7 @@ test("test fetching repositories from an organisation", async () => {
     accessToken
   );
 
-  expect(res.organization.repositories.totalCount).toBe(10);
+  expect(res.organization.repositories.totalCount).toBe(9);
 });
 
 
@@ -67,15 +67,15 @@ describe("Dependencies", () => {
     });
 });
 
-test("test fetching repositories from an organisation", async () => {
+test("test language-specific dependency gathering from an organisation", async () => {
 	let organisation = "evergreen-test-environment";
 
 	const allDeps = await scrapeOrganisation({targetOrganisation: organisation}, accessToken)
 	const packageDeps = mergeDependenciesLists(allDeps);
 	console.log(packageDeps)
-	expect(packageDeps.get("NPM")?.length).toBe(11);
+	expect(packageDeps.get("NPM")?.length).toBe(247);
 	expect(packageDeps.get("PYPI")?.length).toBe(18);
-	// expect(packageDeps.get("RUBYGEMS")?.length).toBe(0);
+	expect(packageDeps.get("RUBYGEMS")?.length).toBe(56);
 });
 
 test("test overall output of the crawler library", async () => {
@@ -83,7 +83,7 @@ test("test overall output of the crawler library", async () => {
 
 	const data = JSON.parse(await getJsonStructure(accessToken, {targetOrganisation: organisation}))
   if (data.npm.length > 0){
-    expect(Object.keys(data.npm[0]).length).toBe(15);
+    expect(Object.keys(data.npm[0]).length).toBe(255);
     expect(data.npm[1].length).toBe(4);
 
   }
