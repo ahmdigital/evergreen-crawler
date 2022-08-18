@@ -7,7 +7,7 @@ import { getAccessToken } from "./utils";
 import { scrapeOrganisation, mergeDependenciesLists, getJsonStructure} from "./index";
 import { TokenBucket } from "./rate-limiting/token-bucket";
 
-jest.setTimeout(60*1000)
+jest.setTimeout(60*60*1000)
 const accessToken = getAccessToken();
 
 // beforeEach(async () => accessToken())
@@ -60,11 +60,11 @@ describe("Dependencies", () => {
       numOfPages,
       repoCursor,
       accessToken
-      );
-      // console.log(res.organization.repositories.edges[0].node.mainBranch.repository)
+    );
+    // console.log(res.organization.repositories.edges[0].node.mainBranch.repository)
 
-      expect(res.organization.repositories.edges[0].node.mainBranch.repository.dependencyGraphManifests.totalCount).toBe(6);
-    });
+    expect(res.organization.repositories.edges[0].node.mainBranch.repository.dependencyGraphManifests.totalCount).toBe(6);
+  });
 });
 
 test("test language-specific dependency gathering from an organisation", async () => {
@@ -84,7 +84,7 @@ test("test overall output of the crawler library", async () => {
 	const data = JSON.parse(await getJsonStructure(accessToken, {targetOrganisation: organisation}))
   if (data.npm.length > 0){
     expect(Object.keys(data.npm[0]).length).toBe(255);
-    expect(data.npm[1].length).toBe(4);
+    expect(data.npm[1].length).toBe(15);
 
   }
   if (data.PyPI.length > 0){
@@ -92,7 +92,7 @@ test("test overall output of the crawler library", async () => {
 	  expect(data.PyPI[1].length).toBe(1);
   }
   if (data.RubyGems.length > 0){
-    expect(Object.keys(data.RubyGems[0]).length).toBe(0);
+    expect(Object.keys(data.RubyGems[0]).length).toBe(61);
 	  expect(data.RubyGems[1].length).toBe(0);
   }
 });
