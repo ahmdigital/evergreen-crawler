@@ -7,7 +7,7 @@ import { getAccessToken } from "./utils";
 import { scrapeOrganisation, mergeDependenciesLists, getJsonStructure} from "./index";
 import { TokenBucket } from "./rate-limiting/token-bucket";
 
-jest.setTimeout(60*60*1000)
+jest.setTimeout(3*60*1000)
 const accessToken = getAccessToken();
 
 // beforeEach(async () => accessToken())
@@ -61,9 +61,9 @@ describe("Dependencies", () => {
       repoCursor,
       accessToken
     );
-    // console.log(res.organization.repositories.edges[0].node.mainBranch.repository)
+    // console.log(res.organization.repositories.edges[0].node)
 
-    expect(res.organization.repositories.edges[0].node.mainBranch.repository.dependencyGraphManifests.totalCount).toBe(6);
+    expect(res.organization.repositories.edges[0].node.dependencyGraphManifests.totalCount).toBe(6);
   });
 });
 
@@ -73,8 +73,8 @@ test("test language-specific dependency gathering from an organisation", async (
 	const allDeps = await scrapeOrganisation({targetOrganisation: organisation}, accessToken)
 	const packageDeps = mergeDependenciesLists(allDeps);
 	console.log(packageDeps)
-	expect(packageDeps.get("NPM")?.length).toBe(247);
-	expect(packageDeps.get("PYPI")?.length).toBe(18);
+	expect(packageDeps.get("NPM")?.length).toBe(270);
+	expect(packageDeps.get("PYPI")?.length).toBe(59);
 	expect(packageDeps.get("RUBYGEMS")?.length).toBe(56);
 });
 
@@ -83,16 +83,16 @@ test("test overall output of the crawler library", async () => {
 
 	const data = JSON.parse(await getJsonStructure(accessToken, {targetOrganisation: organisation}))
   if (data.npm.length > 0){
-    expect(Object.keys(data.npm[0]).length).toBe(255);
-    expect(data.npm[1].length).toBe(15);
+    expect(Object.keys(data.npm[0]).length).toBe(280);
+    expect(data.npm[1].length).toBe(19);
 
   }
   if (data.PyPI.length > 0){
-    expect(Object.keys(data.PyPI[0]).length).toBe(19);
+    expect(Object.keys(data.PyPI[0]).length).toBe(60);
 	  expect(data.PyPI[1].length).toBe(1);
   }
   if (data.RubyGems.length > 0){
     expect(Object.keys(data.RubyGems[0]).length).toBe(61);
-	  expect(data.RubyGems[1].length).toBe(0);
+	  expect(data.RubyGems[1].length).toBe(5);
   }
 });
