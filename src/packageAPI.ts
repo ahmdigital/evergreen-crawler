@@ -50,6 +50,7 @@ export type Repository = {
 	name: string,
 	oldName: string,
 	version: string,
+	lastUpdated: string,
 	link: string,
 	isArchived: boolean,
 	dependencies: Map<string, string>

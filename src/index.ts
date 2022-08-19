@@ -86,8 +86,8 @@ async function getRealNames(repoList: ReturnType<typeof getAllRepoDeps>, config:
 // get dependencies of a repo obj, used by function getAllRepoDeps(repoList)
 // returns object with repo name and list of blob paths ending with package.json and blob path's dependencies
 function getRepoDependencies(repo: BranchManifest) {
-	function blobPathDeps(subPath: string, subPathName: string, blobPath: string, deps: DependencyGraphDependency[] ) {
-		return { subPath: subPath, subPathName: subPathName, blobPath: blobPath, version: "", dependencies: deps, realName: ""}
+	function blobPathDeps(subPath: string, subPathName: string, blobPath: string, updatedAt: string, deps: DependencyGraphDependency[] ) {
+		return { subPath: subPath, subPathName: subPathName, blobPath: blobPath, version: "", updatedAt: updatedAt, dependencies: deps, realName: ""}
 	}
 
 	let repoDepObj: {
@@ -99,6 +99,9 @@ function getRepoDependencies(repo: BranchManifest) {
 	const depGraphManifests = repo.repository.dependencyGraphManifests
 	const files = depGraphManifests.edges
 	let index = 0
+
+	const repoUpdateTime = repo.repository.updatedAt
+
 	// iterate through all files in repo to find the ones with package.json
 	for (const file of files) {
 		const blobPath = file.node.blobPath;
@@ -118,11 +121,11 @@ function getRepoDependencies(repo: BranchManifest) {
 
 					if (depCount > 0) {
 						const dependencies = file.node.dependencies.nodes
-						const blobPathDep = blobPathDeps(subPath, subPathName, blobPath, dependencies)
+						const blobPathDep = blobPathDeps(subPath, subPathName, blobPath, repoUpdateTime, dependencies)
 						repoDepObj.packageMap.get(packageManager.name)?.push(blobPathDep)
 					} else {
 						// currently includes package.json files with no dependencies
-						const blobPathDep = blobPathDeps(subPath, subPathName, blobPath, [])
+						const blobPathDep = blobPathDeps(subPath, subPathName, blobPath, repoUpdateTime, [])
 						repoDepObj.packageMap.get(packageManager.name)?.push(blobPathDep)
 					}
 				}
@@ -362,6 +365,7 @@ async function scrapeOrganisation(config: ReturnType<typeof loadConfig>, accessT
 						name: subRepo.realName,
 						oldName: name + (subRepo.subPath == "" ? "" : "(" + subRepo.subPath + ")"),
 						version: subRepo.version,
+						lastUpdated: subRepo.updatedAt,
 						link: repo.manifest.url,
 						isArchived: repo.manifest.isArchived,
 						dependencies: deps

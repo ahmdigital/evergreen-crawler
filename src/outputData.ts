@@ -4,7 +4,7 @@ export function depDataToJson(
 	nameMap: Map<string, number>,
 	data: Map<
 		number,
-		{ version: string; link: string; internal: boolean; archived: boolean }
+		{ version: string; lastUpdated: string; link: string; internal: boolean; archived: boolean }
 	>
 ): string {
 	let res = "";
@@ -16,6 +16,7 @@ export function depDataToJson(
 		res += '"' + id.toString() + '": {';
 		res += '"name": "' + name + '",';
 		res += '"version": "' + thisData?.version + '",';
+		res += '"lastUpdated": "' + thisData?.lastUpdated + '",';
 		res += '"link": "' + thisData?.link + '",';
 		res += '"internal": ' + thisData?.internal + ",";
 		res += '"archived": ' + thisData?.archived + "";
@@ -40,7 +41,7 @@ export function generateDependencyTree(
 
 	let depData: Map<
 		number,
-		{ version: string; link: string; internal: boolean; archived: boolean }
+		{ version: string; lastUpdated: string, link: string; internal: boolean; archived: boolean }
 	> = new Map();
 
 	for (const [name, data] of depMap) {
@@ -48,6 +49,7 @@ export function generateDependencyTree(
 		depNameMap.set(name, id);
 		depData.set(id, {
 			version: data.version,
+			lastUpdated: "",
 			link: "",
 			internal: false,
 			archived: false,
@@ -60,12 +62,14 @@ export function generateDependencyTree(
 			depNameMap.set(d.name, depNameMap.size);
 			depData.set(depNameMap.get(d.name) as number, {
 				version: d.version ? d.version : "",
+				lastUpdated: d.lastUpdated,
 				link: d.link,
 				internal: true,
 				archived: d.isArchived,
 			});
 		} else {
 			depData.get(depNameMap.get(d!.name)!)!.link = d!.link;
+			depData.get(depNameMap.get(d!.name)!)!.lastUpdated = d!.lastUpdated;
 			depData.get(depNameMap.get(d!.name)!)!.internal = true;
 		}
 
@@ -76,6 +80,7 @@ export function generateDependencyTree(
 				depNameMap.set(depName, depNameMap.size);
 				depData.set(depNameMap.get(depName)!, {
 					version: "",
+					lastUpdated: "",
 					link: "",
 					internal: false,
 					archived: false,
