@@ -10,7 +10,7 @@ function getRepos(response: GraphResponse) {
 	let filteredRepos: BranchManifest[] = []
 	for (const repo of allRepos) {
 		//console.log(repo);
-		const ref = repo.node.mainBranch ? repo.node.mainBranch : repo.node.masterBranch;
+		const ref = repo.node
 		if (ref == null) {
 			continue
 		}
@@ -92,17 +92,18 @@ function getRepoDependencies(repo: BranchManifest) {
 
 	let repoDepObj: {
 		manifest: UpperBranchManifest, packageMap: Map<string, ReturnType<typeof blobPathDeps>[]>
-	} = { manifest: repo.repository as UpperBranchManifest, packageMap: new Map() }
+	} = { manifest: repo as UpperBranchManifest, packageMap: new Map() }
 
 	// repoDepObj.packageMap = new Map()
 
-	const depGraphManifests = repo.repository.dependencyGraphManifests
+	const depGraphManifests = repo.dependencyGraphManifests
 	const files = depGraphManifests.edges
 	let index = 0
 	// iterate through all files in repo to find the ones with package.json
 	for (const file of files) {
 		const blobPath = file.node.blobPath;
-		const subPath = depGraphManifests.nodes[index].filename
+
+		const subPath = depGraphManifests.edges[index].node.filename
 		index += 1;
 		for (const packageManager of packageManagerFiles) {
 			for (const ext of packageManager.extensions) {
@@ -258,6 +259,7 @@ async function fetchingData(config: { targetOrganisation: string; }, accessToken
 	try {
 
 		await retry(() => getOrgReposCursors(config, repoCursors, accessToken), 3);
+		// TODO: shift cursors by 1 to the left
 		repoCursors[0] = null;
 		const numOfPages = 1;
 		const responses: GraphResponse[] = [];
@@ -324,15 +326,13 @@ export async function scrapeOrganisation(config: ReturnType<typeof loadConfig>, 
 	for (const response of responses) {
 
 		for (const repo of response?.organization?.repositories?.edges) {
-			const ref = repo.node.mainBranch ? repo.node.mainBranch : repo.node.masterBranch;
+			const ref = repo.node?.dependencyGraphManifests;
 			if (ref == null) {
 				continue
 			}
 
-			const depGraphManifests = ref.repository.dependencyGraphManifests;
-			const files: any[] = depGraphManifests.edges;
-
-			console.log(ref.repository.name)
+			const files: any[] = repo.node!.dependencyGraphManifests!.edges;
+			console.log(repo.node!.name)
 
 			//This requires files to be sorted by depth, shallowest first
 			for (const file of files) {
