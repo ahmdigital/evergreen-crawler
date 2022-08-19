@@ -68,7 +68,7 @@ export async function queryDependencyNpm(dependency: string, rateLimiter: Packag
 		manifest = { version: "1.0.0"}
 		console.log(e)
 	}
-	return { name: dependency, data: { version: manifest.version } }
+	return { name: dependency, data: { version: manifest.version, link: "https://www.npmjs.com/package/" + dependency } }
 }
 
 type PythonPackageVersion = {
@@ -162,7 +162,7 @@ export async function queryDependencyPyPI(dependency: string, rateLimiter: Packa
 		}
 	}
 
-	return { name: dependency, data: { version: bestVersion } }
+	return { name: dependency, data: { version: bestVersion, link: "https://pypi.org/project/" + dependency } }
 }
 
 //Gets the information for a single Ruby dependecy from an external service, RubyGems.
@@ -173,12 +173,12 @@ export async function queryDependencyRubyGems(dependency: string, rateLimiter: P
 	const response = await (await fetch("https://rubygems.org/api/v1/versions/" + dependency + "/latest.json")).json()
 	const data = response as { version: string }
 
-	return { name: dependency, data: { version: data.version } }
+	return { name: dependency, data: { version: data.version, link: "https://rubygems.org/gems/" + dependency } }
 }
 
 //Calls the given API for all dependencies in the given list
 async function getDependencies(dependencies: string[], rateLimiter: PackageRateLimiter, queryFunc: any) {
-		let depMap: Map<string, { version: string }> = new Map()
+		let depMap: Map<string, { version: string, link: string }> = new Map()
 
 		const depList = await Promise.all(
 			dependencies.map((dependency) => queryFunc(dependency, rateLimiter))

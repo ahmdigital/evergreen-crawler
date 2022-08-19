@@ -50,7 +50,7 @@ export function generateDependencyTree(
 		depData.set(id, {
 			version: data.version,
 			lastUpdated: "",
-			link: "",
+			link: data.link,
 			internal: false,
 			archived: false,
 		});
