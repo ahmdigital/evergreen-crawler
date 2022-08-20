@@ -30,7 +30,7 @@ jobs:
       - name: Test
         run: npm run test
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN_SCOPE_READ_PUBLIC_REPO }}
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN_SCOPE_READ_PUBLIC_REPO }}
 
       - name: Publish
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
