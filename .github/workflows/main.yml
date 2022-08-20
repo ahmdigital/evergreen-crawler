@@ -60,3 +60,4 @@ jobs:
     uses: ./.github/workflows/build.yml
     secrets:
       NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+      GH_TOKEN_SCOPE_READ_PUBLIC_REPO: ${{ secrets.GH_TOKEN_SCOPE_READ_PUBLIC_REPO }}

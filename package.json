@@ -1,11 +1,11 @@
 {
   "name": "evergreen-org-crawler",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "",
   "main": "index.js",
   "scripts": {
     "start": "tsc && node ./build/index.js",
-    "test": "jest"
+    "test": "jest --forceExit --detectOpenHandles"
   },
   "keywords": [],
   "author": "",
@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@octokit/rest": "^18.12.0",
+    "dotenv": "^16.0.1",
     "es6-map": "^0.1.5",
     "graphql": "^16.5.0",
     "inquirer": "^8.2.4",
