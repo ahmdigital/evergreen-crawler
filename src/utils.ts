@@ -7,9 +7,9 @@ import * as fs from "fs";
 export function getAccessToken(): string {
 	require('dotenv').config();
 	try {
-		return process.env.GITHUB_TOKEN!.toString().trim()
+		return process.env.GH_TOKEN!.toString().trim()
 	} catch (e) {
-		throw new Error("Could not read token from .env file")
+		throw new Error("Could not read token from env variables")
 	}
 }
 
