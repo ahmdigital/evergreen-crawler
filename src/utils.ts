@@ -5,8 +5,9 @@ import * as fs from "fs";
  * @returns return the token
  */
 export function getAccessToken(): string {
+	require('dotenv').config();
 	try {
-		return fs.readFileSync("./.env").toString().trim();
+		return process.env.GITHUB_TOKEN!.toString().trim()
 	} catch (e) {
 		throw new Error("Could not read token from .env file")
 	}

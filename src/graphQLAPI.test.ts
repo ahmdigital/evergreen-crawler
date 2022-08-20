@@ -74,7 +74,7 @@ test("test language-specific dependency gathering from an organisation", async (
 	const packageDeps = mergeDependenciesLists(allDeps);
 	console.log(packageDeps)
 	expect(packageDeps.get("NPM")?.length).toBe(270);
-	expect(packageDeps.get("PYPI")?.length).toBe(59);
+	expect(packageDeps.get("PYPI")?.length).toBe(75);
 	expect(packageDeps.get("RUBYGEMS")?.length).toBe(56);
 });
 
@@ -88,8 +88,8 @@ test("test overall output of the crawler library", async () => {
 
   }
   if (data.PyPI.length > 0){
-    expect(Object.keys(data.PyPI[0]).length).toBe(60);
-	  expect(data.PyPI[1].length).toBe(1);
+    expect(Object.keys(data.PyPI[0]).length).toBe(77);
+	  expect(data.PyPI[1].length).toBe(2);
   }
   if (data.RubyGems.length > 0){
     expect(Object.keys(data.RubyGems[0]).length).toBe(61);
