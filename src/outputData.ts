@@ -1,11 +1,15 @@
 import { Repository, getDependenciesNpm } from "./packageAPI";
 
+export type IdDepMap = Map<
+	number,
+	{ version: string; link: string; internal: boolean; archived: boolean }
+>
+
+export type NameIdMap = Map<string, number>
+
 export function depDataToJson(
-	nameMap: Map<string, number>,
-	data: Map<
-		number,
-		{ version: string; link: string; internal: boolean; archived: boolean }
-	>
+	nameMap: NameIdMap,
+	data: IdDepMap
 ): string {
 	let res = "";
 
@@ -38,10 +42,7 @@ export function generateDependencyTree(
 ): any {
 	let depNameMap: Map<string, number> = new Map();
 
-	let depData: Map<
-		number,
-		{ version: string; link: string; internal: boolean; archived: boolean }
-	> = new Map();
+	let depData: IdDepMap = new Map();
 
 	for (const [name, data] of depMap) {
 		const id = depNameMap.size;

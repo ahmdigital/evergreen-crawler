@@ -81,3 +81,13 @@ DependencyList: Object[] = [
 ]
 
 ```
+
+
+## Limitations
+The dashboard depends on [Dependency Graph manifest](https://docs.github.com/en/graphql/reference/objects#dependencygraphmanifest), which has some limitations, for example it cannot detect dependencies which:
+* Javascript:
+  * use `"foo": "github:user/repo`
+  * use `"foo": "user/repo"`
+  * use `"foo": "fileSystemPath"`
+* Python
+  * use `foo fileSystemPath`

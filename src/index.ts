@@ -10,7 +10,7 @@ function getRepos(response: GraphResponse) {
 	let filteredRepos: BranchManifest[] = []
 	for (const repo of allRepos) {
 		//console.log(repo);
-		const ref = repo.node.mainBranch ? repo.node.mainBranch : repo.node.masterBranch;
+		const ref = repo.node
 		if (ref == null) {
 			continue
 		}
@@ -92,17 +92,18 @@ function getRepoDependencies(repo: BranchManifest) {
 
 	let repoDepObj: {
 		manifest: UpperBranchManifest, packageMap: Map<string, ReturnType<typeof blobPathDeps>[]>
-	} = { manifest: repo.repository as UpperBranchManifest, packageMap: new Map() }
+	} = { manifest: repo as UpperBranchManifest, packageMap: new Map() }
 
 	// repoDepObj.packageMap = new Map()
 
-	const depGraphManifests = repo.repository.dependencyGraphManifests
+	const depGraphManifests = repo.dependencyGraphManifests
 	const files = depGraphManifests.edges
 	let index = 0
 	// iterate through all files in repo to find the ones with package.json
 	for (const file of files) {
 		const blobPath = file.node.blobPath;
-		const subPath = depGraphManifests.nodes[index].filename
+
+		const subPath = depGraphManifests.edges[index].node.filename
 		index += 1;
 		for (const packageManager of packageManagerFiles) {
 			for (const ext of packageManager.extensions) {
@@ -145,7 +146,7 @@ function getAllRepoDeps(repoList: BranchManifest[]) {
 	return all_dependencies
 }
 
-function mergeDependenciesLists(managerRepos: Map<string, Repository[]>): Map<string, string[]> {
+export function mergeDependenciesLists(managerRepos: Map<string, Repository[]>): Map<string, string[]> {
 	let deps: Map<string, Set<string>> = new Map()
 
 	for (const [packageManager, repos] of managerRepos) {
@@ -258,21 +259,24 @@ async function fetchingData(config: { targetOrganisation: string; }, accessToken
 	try {
 
 		await retry(() => getOrgReposCursors(config, repoCursors, accessToken), 3);
-		repoCursors[0] = null;
+		// prepend a null so that we can get the first repo, and remove the last cursor
+		// this is because we always get x repos after y cursor, if the cursor is null, then it start getting the first repos
+		let requestRepoCursors: (string | null)[] = (repoCursors.slice(0, -1))
+		requestRepoCursors.unshift(null)
 		const numOfPages = 1;
 		const responses: GraphResponse[] = [];
 
 		const failedCursors: (string | null)[] = [];
 
-		for (let curCursor = 0; curCursor < repoCursors.length; curCursor += numOfPages) {
+		for (let curCursor = 0; curCursor < requestRepoCursors.length; curCursor += numOfPages) {
 
 			promises.push(new Promise(async (resolve, reject) => {
 				try {
 					// get numOfPages repositories at a time
-					const res = await retry(() => queryDependencies(config.targetOrganisation, numOfPages, repoCursors[curCursor], accessToken) as Promise<GraphResponse>, 2);
+					const res = await retry(() => queryDependencies(config.targetOrganisation, numOfPages, requestRepoCursors[curCursor], accessToken) as Promise<GraphResponse>, 2);
 					responses.push(res);
 				} catch (e) {
-					const cursors = repoCursors.slice(curCursor, curCursor + numOfPages);
+					const cursors = requestRepoCursors.slice(curCursor, curCursor + numOfPages);
 					if (numOfPages === 1){
 						failedCursors.push(...cursors);
 					}
@@ -311,7 +315,7 @@ async function fetchingData(config: { targetOrganisation: string; }, accessToken
 }
 
 
-async function scrapeOrganisation(config: ReturnType<typeof loadConfig>, accessToken: string) {
+export async function scrapeOrganisation(config: ReturnType<typeof loadConfig>, accessToken: string) {
 	let allDeps = new Map<string, Repository[]>()
 
 	const {responses, failedCursors} = await fetchingData(config, accessToken);
@@ -324,15 +328,13 @@ async function scrapeOrganisation(config: ReturnType<typeof loadConfig>, accessT
 	for (const response of responses) {
 
 		for (const repo of response?.organization?.repositories?.edges) {
-			const ref = repo.node.mainBranch ? repo.node.mainBranch : repo.node.masterBranch;
+			const ref = repo.node?.dependencyGraphManifests;
 			if (ref == null) {
 				continue
 			}
 
-			const depGraphManifests = ref.repository.dependencyGraphManifests;
-			const files: any[] = depGraphManifests.edges;
-
-			console.log(ref.repository.name)
+			const files: any[] = repo.node!.dependencyGraphManifests!.edges;
+			console.log(repo.node!.name)
 
 			//This requires files to be sorted by depth, shallowest first
 			for (const file of files) {

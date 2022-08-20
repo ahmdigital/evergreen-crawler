@@ -1,7 +1,5 @@
-import { captureRejectionSymbol } from "events";
 import { TokenBucket } from "./rate-limiting/token-bucket";
 import { getPackageManifest } from "query-registry";
-//import { fetch } from "node-fetch";
 
 export const APIParameters = {
 	// Github api allows 5000 reqs per hour. 5000/3600 = 1.388 reqs per second.
@@ -204,9 +202,3 @@ export async function getDependenciesPyPI(dependencies: string[], rateLimiter: P
 export async function getDependenciesRubyGems(dependencies: string[], rateLimiter: PackageRateLimiter) {
 	return getDependencies(dependencies, rateLimiter, queryDependencyRubyGems)
 }
-
-
-
-// export async function getNPMMetadata(packageJSON:type) {
-
-// }
