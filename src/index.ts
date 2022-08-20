@@ -259,22 +259,24 @@ async function fetchingData(config: { targetOrganisation: string; }, accessToken
 	try {
 
 		await retry(() => getOrgReposCursors(config, repoCursors, accessToken), 3);
-		// TODO: shift cursors by 1 to the left
-		repoCursors[0] = null;
+		// prepend a null so that we can get the first repo, and remove the last cursor
+		// this is because we always get x repos after y cursor, if the cursor is null, then it start getting the first repos
+		let requestRepoCursors: (string | null)[] = (repoCursors.slice(0, -1))
+		requestRepoCursors.unshift(null)
 		const numOfPages = 1;
 		const responses: GraphResponse[] = [];
 
 		const failedCursors: (string | null)[] = [];
 
-		for (let curCursor = 0; curCursor < repoCursors.length; curCursor += numOfPages) {
+		for (let curCursor = 0; curCursor < requestRepoCursors.length; curCursor += numOfPages) {
 
 			promises.push(new Promise(async (resolve, reject) => {
 				try {
 					// get numOfPages repositories at a time
-					const res = await retry(() => queryDependencies(config.targetOrganisation, numOfPages, repoCursors[curCursor], accessToken) as Promise<GraphResponse>, 2);
+					const res = await retry(() => queryDependencies(config.targetOrganisation, numOfPages, requestRepoCursors[curCursor], accessToken) as Promise<GraphResponse>, 2);
 					responses.push(res);
 				} catch (e) {
-					const cursors = repoCursors.slice(curCursor, curCursor + numOfPages);
+					const cursors = requestRepoCursors.slice(curCursor, curCursor + numOfPages);
 					if (numOfPages === 1){
 						failedCursors.push(...cursors);
 					}

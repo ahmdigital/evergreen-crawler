@@ -238,6 +238,7 @@ export async function queryDependencies(organisation: string, numOfPages: number
 					url
 					name
 					stargazerCount
+					pushedAt
 					updatedAt
 					dependencyGraphManifests(withDependencies: true, first: $dependencyLimit) {
 					  totalCount
