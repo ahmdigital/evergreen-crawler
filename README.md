@@ -81,3 +81,19 @@ DependencyList: Object[] = [
 ]
 
 ```
+
+## Execute jest test faster
+
+Run a single file only `npm run test <PATHTOFILE>`
+
+Use the flag `--onlyFailures` to only run failed tests in the previous execution `npm run test --onlyFailures`
+
+
+## Limitations
+The dashboard depends on [Dependency Graph manifest](https://docs.github.com/en/graphql/reference/objects#dependencygraphmanifest), which has some limitations, for example it cannot detect dependencies which:
+* Javascript:
+  * use `"foo": "github:user/repo`
+  * use `"foo": "user/repo"`
+  * use `"foo": "fileSystemPath"`
+* Python
+  * use `foo fileSystemPath`

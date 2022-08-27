@@ -16,20 +16,29 @@ export type DependencyGraphDependency = {
 
 export type DependencyGraphManifest = {
 	node: {
+		filename: string,
+		dependenciesCount: string,
+		exceedsMaxSize: string,
+		parseable: string,
+		defaultBranchRef: {
+			name: string
+		},
 		blobPath: string,
 		dependencies: {
 			totalCount: number,
 			nodes: DependencyGraphDependency[]
 		}
-	}
+	},
+	cursor: string
 }
 
 export type DependencyGraphManifests = {
 	 totalCount: number
-	 nodes: {
-		 filename: string
-	 }[]
-	 edges: DependencyGraphManifest[]
+	 edges: DependencyGraphManifest[],
+	 pageInfo: {
+		endCursor: string,
+		hasNextPage: boolean
+	}
 }
 
 // TODO: DependencyGraphManifestConnection
@@ -50,15 +59,10 @@ export type UpperBranchManifest = {
 	updatedAt: string
 }
 
-export type BranchManifest = {
-	repository: UpperBranchManifest & {dependencyGraphManifests: DependencyGraphManifests}
-}
+export type BranchManifest = UpperBranchManifest & {dependencyGraphManifests: DependencyGraphManifests}
 
 export type RepoEdge = {
-	node: {
-		mainBranch: BranchManifest | null,
-		masterBranch: BranchManifest | null
-	},
+	node: BranchManifest | null,
 	cursor: string
 }
 
@@ -110,6 +114,26 @@ export type OrgRepos = {
 		}
 	}
 }
+
+// "errors": [
+// 	{
+// 		"path": [
+// 			"organization",
+// 			"repositories",
+// 			"edges",
+// 			1,
+// 			"node",
+// 			"dependencyGraphManifests"
+// 		],
+// 		"locations": [
+// 			{
+// 				"line": 24,
+// 				"column": 11
+// 			}
+// 		],
+// 		"message": "timedout"
+// 	}
+// ]
 
 export type Manifest = {
 	text: string | null
@@ -179,7 +203,9 @@ export async function queryRepositories(organisation: string, numOfPages: number
 			numOfPages: numOfPages,
 			repoCursor: repoCursor,
 		}
-	return queryGraphQL(query, param, token)
+	let something = await queryGraphQL(query, param, token)
+
+	return something
 
 }
 export async function queryDependencies(organisation: string, numOfPages: number, repoCursor: string | null, token: string) : Promise<GraphQlQueryResponseData> {
@@ -188,81 +214,79 @@ export async function queryDependencies(organisation: string, numOfPages: number
   // https://stackoverflow.com/questions/51504760/how-to-get-all-repos-that-contain-a-certain-branch-on-githubs-graphql-api
   // TODO: limit to default branch, current setup no working
   // TODO: implement V2 version of this query, refer to Postman
-  let query: string =
-    `
-	query orgRepos($organisation: String!, $numOfPages: Int!, $repoCursor: String, $dependencyLimit: Int!) {
-		rateLimit{
-		   cost
-		   remaining
-		   resetAt
-		   }
-		 organization(login: $organisation) {
-		 id
-		 repositories(first: $numOfPages, after: $repoCursor , orderBy: {field: PUSHED_AT, direction: DESC
-		   }) {
-		   edges {
-		   node {
-				mainBranch: ref(qualifiedName: "main"){
-							...repositoryFields
-							}
-				masterBranch: ref(qualifiedName: "master"){
-					...repositoryFields
-					}
-				}
-		   		cursor
+	let query: string =
+		`
+		query orgRepos($organisation: String!, $numOfPages: Int!, $repoCursor: String, $dependencyLimit: Int!) {
+			rateLimit{
+			  cost
+			  remaining
+			  resetAt
 			}
-			pageInfo {
-				endCursor
-				hasNextPage
-			}
-		   }
-		 }
-	   }
-   fragment repositoryFields on Ref {
-	   repository{
-		  defaultBranchRef {
-			  name
-			  }
-		  description
-		  isArchived
-		  isLocked
-		  isPrivate
-		  url
-		  name
-		  stargazerCount
-		  updatedAt
-		   dependencyGraphManifests(withDependencies: true, first: $dependencyLimit) {
-			  totalCount
-			  nodes {
-				  filename
-				  }
-			  edges {
+			organization(login: $organisation) {
+			  id
+			  repositories(first: $numOfPages, after: $repoCursor, orderBy: {field: PUSHED_AT, direction: DESC}
+			  ) {
+				edges {
 				  node {
-					  blobPath
-					  dependencies {
-						  totalCount
-						  nodes {
-						  packageName
-						  requirements
-						  hasDependencies
-						  packageManager
-							  }
-						  }
+					  defaultBranchRef {
+						  name
 					  }
+					description
+					isArchived
+					isLocked
+					isPrivate
+					url
+					name
+					stargazerCount
+					pushedAt
+					updatedAt
+					dependencyGraphManifests(withDependencies: true, first: $dependencyLimit) {
+					  totalCount
+					  edges {
+						node {
+						  filename
+						  dependenciesCount
+						  exceedsMaxSize
+						  parseable
+						  blobPath
+						  dependencies {
+							totalCount
+							nodes {
+							  packageName
+							  requirements
+							  hasDependencies
+							  packageManager
+							}
+						  }
+						}
+						cursor
+					  }
+					  pageInfo {
+						endCursor
+						hasNextPage
+					  }
+					}
+				  }
 				  cursor
-			   }
-		   }
-	   }
-   }
-        `
+				}
+				pageInfo {
+				  endCursor
+				  hasNextPage
+				}
+			  }
+			}
+		  }
+		`
+
 	let param = {
 	  organisation: organisation,
       numOfPages: numOfPages,
       repoCursor: repoCursor,
-	  dependencyLimit: 10
+	//   TODO: paging dependencies
+	  dependencyLimit: 20
     }
-
-  return queryGraphQL(query, param, token)
+	let something = await queryGraphQL(query, param, token)
+  return something
 }
 
 /**
