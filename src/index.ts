@@ -100,7 +100,7 @@ function getRepoDependencies(repo: BranchManifest) {
 	const files = depGraphManifests.edges
 	let index = 0
 
-	const repoUpdateTime = repo.repository.updatedAt
+	const repoUpdateTime = repo.updatedAt
 
 	// iterate through all files in repo to find the ones with package.json
 	for (const file of files) {
