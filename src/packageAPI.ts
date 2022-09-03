@@ -1,5 +1,6 @@
 import { TokenBucket } from "./rate-limiting/token-bucket";
 import { getPackageManifest } from "query-registry";
+import { Configuration } from "./utils";
 
 export const APIParameters = {
 	// Github api allows 5000 reqs per hour. 5000/3600 = 1.388 reqs per second.
@@ -55,18 +56,19 @@ export type Repository = {
 }
 
 //Gets the information for a single npm dependecy from the external service.
-export async function queryDependencyNpm(dependency: string, rateLimiter: PackageRateLimiter) {
+export async function queryDependencyNpm(dependency: string, rateLimiter: PackageRateLimiter, baseUrl: string) {
 	await rateLimiter.npm.tokenBucket.waitForTokens(1)
 
 	let manifest
 	try{
-		manifest = await getPackageManifest({ name: dependency })
+		manifest = await getPackageManifest({ name: dependency, ...(baseUrl == "" ? {}: {registry: baseUrl})})
 	}
 	catch(e){
 		manifest = { version: "1.0.0"}
 		console.log(e)
 	}
-	return { name: dependency, data: { version: manifest.version, link: "https://www.npmjs.com/package/" + dependency } }
+	baseUrl = baseUrl == "" ? "https://www.npmjs.com" : baseUrl
+	return { name: dependency, data: { version: manifest.version, link: baseUrl + "/package/" + dependency } }
 }
 
 type PythonPackageVersion = {
@@ -140,11 +142,13 @@ export function greaterThanPythonPackageVersion(a: PythonPackageVersion, b: Pyth
 }
 
 //Gets the information for a single pip dependecy from an external service, PyPI.
-export async function queryDependencyPyPI(dependency: string, rateLimiter: PackageRateLimiter) {
+export async function queryDependencyPyPI(dependency: string, rateLimiter: PackageRateLimiter, baseUrl: string) {
 	await rateLimiter.pypi.tokenBucket.waitForTokens(1)
 
+	baseUrl = baseUrl == "" ? "https://pypi.org" : baseUrl
+
 	//https://warehouse.pypa.io/api-reference/, they suggest that our user agent should mention who we are
-	const response = await (await fetch("https://pypi.org/pypi/" + dependency + "/json")).json()
+	const response = await (await fetch(baseUrl + "/pypi/" + dependency + "/json")).json()
 	const data = response as { info: { version : any}, releases : any }
 
 	let bestVersion: string = "0"
@@ -160,26 +164,28 @@ export async function queryDependencyPyPI(dependency: string, rateLimiter: Packa
 		}
 	}
 
-	return { name: dependency, data: { version: bestVersion, link: "https://pypi.org/project/" + dependency } }
+	return { name: dependency, data: { version: bestVersion, link: baseUrl + "/project/" + dependency } }
 }
 
 //Gets the information for a single Ruby dependecy from an external service, RubyGems.
-export async function queryDependencyRubyGems(dependency: string, rateLimiter: PackageRateLimiter) {
+export async function queryDependencyRubyGems(dependency: string, rateLimiter: PackageRateLimiter, baseUrl: string) {
 	await rateLimiter.rubygems.tokenBucket.waitForTokens(1)
 
+	baseUrl = baseUrl == "" ? "https://rubygems.org" : baseUrl
+
 	//https://guides.rubygems.org/rubygems-org-api/
-	const response = await (await fetch("https://rubygems.org/api/v1/versions/" + dependency + "/latest.json")).json()
+	const response = await (await fetch(baseUrl + "/api/v1/versions/" + dependency + "/latest.json")).json()
 	const data = response as { version: string }
 
-	return { name: dependency, data: { version: data.version, link: "https://rubygems.org/gems/" + dependency } }
+	return { name: dependency, data: { version: data.version, link: baseUrl + "/gems/" + dependency } }
 }
 
 //Calls the given API for all dependencies in the given list
-async function getDependencies(dependencies: string[], rateLimiter: PackageRateLimiter, queryFunc: any) {
+async function getDependencies(dependencies: string[], rateLimiter: PackageRateLimiter, queryFunc: any, baseUrl: string) {
 		let depMap: Map<string, { version: string, link: string }> = new Map()
 
 		const depList = await Promise.all(
-			dependencies.map((dependency) => queryFunc(dependency, rateLimiter))
+			dependencies.map((dependency) => queryFunc(dependency, rateLimiter, baseUrl))
 		);
 
 		for (const dependency of depList) {
@@ -190,16 +196,16 @@ async function getDependencies(dependencies: string[], rateLimiter: PackageRateL
 	}
 
 //Calls the npm API for all dependencies in the given list
-export async function getDependenciesNpm(dependencies: string[], rateLimiter: PackageRateLimiter) {
-	return getDependencies(dependencies, rateLimiter, queryDependencyNpm)
+export async function getDependenciesNpm(dependencies: string[], rateLimiter: PackageRateLimiter, config: Configuration) {
+	return getDependencies(dependencies, rateLimiter, queryDependencyNpm, config.npmURL ?? "")
 }
 
 //Calls the PyPI API for all dependencies in the given list
-export async function getDependenciesPyPI(dependencies: string[], rateLimiter: PackageRateLimiter) {
-	return getDependencies(dependencies, rateLimiter, queryDependencyPyPI)
+export async function getDependenciesPyPI(dependencies: string[], rateLimiter: PackageRateLimiter, config: Configuration) {
+	return getDependencies(dependencies, rateLimiter, queryDependencyPyPI, config.pipURL ?? "")
 }
 
 //Calls the RubyGems API for all dependencies in the given list
-export async function getDependenciesRubyGems(dependencies: string[], rateLimiter: PackageRateLimiter) {
-	return getDependencies(dependencies, rateLimiter, queryDependencyRubyGems)
+export async function getDependenciesRubyGems(dependencies: string[], rateLimiter: PackageRateLimiter, config: Configuration) {
+	return getDependencies(dependencies, rateLimiter, queryDependencyRubyGems, config.rubygemsURL ?? "")
 }

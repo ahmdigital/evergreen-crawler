@@ -14,7 +14,10 @@ export function getAccessToken(): string {
 }
 
 export type Configuration = {
-	targetOrganisation: string
+	targetOrganisation: string,
+	npmURL?: string,
+	pipURL?: string,
+	rubygemsURL?: string
 }
 
 //Loads the configuration file "config.json"

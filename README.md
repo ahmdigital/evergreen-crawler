@@ -4,7 +4,13 @@ The organisation Crawler uses the [GitHub GraphQL API](https://docs.GitHub.com/e
 
 The information is outputted to a `response.json` file which has a [schema](#output-schema) .
 
-The current goal is to have the crawler run onn the the frontend
+The current goal is to have the crawler run on the the frontend
+
+## Configuration
+	targetOrganisation: the name of the GitHub organisation to crawl
+	npmURL: optional, the URL to a specific npm host
+	pipURL: optional, the URL to a specific pip host
+	rubygemsURL: optional, the URL to a specific RubyGems host
 
 ## TODO
 ### Improvements
@@ -24,6 +30,7 @@ The current goal is to have the crawler run onn the the frontend
 
 * JavaScript
 * Python
+* Ruby
 
 ## Repository Setup
 
