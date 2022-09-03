@@ -86,8 +86,8 @@ async function getRealNames(repoList: ReturnType<typeof getAllRepoDeps>, config:
 // get dependencies of a repo obj, used by function getAllRepoDeps(repoList)
 // returns object with repo name and list of blob paths ending with package.json and blob path's dependencies
 function getRepoDependencies(repo: BranchManifest) {
-	function blobPathDeps(subPath: string, subPathName: string, blobPath: string, deps: DependencyGraphDependency[] ) {
-		return { subPath: subPath, subPathName: subPathName, blobPath: blobPath, version: "", dependencies: deps, realName: ""}
+	function blobPathDeps(subPath: string, subPathName: string, blobPath: string, pushedAt: string, deps: DependencyGraphDependency[] ) {
+		return { subPath: subPath, subPathName: subPathName, blobPath: blobPath, version: "", pushedAt: pushedAt, dependencies: deps, realName: ""}
 	}
 
 	let repoDepObj: {
@@ -99,6 +99,9 @@ function getRepoDependencies(repo: BranchManifest) {
 	const depGraphManifests = repo.dependencyGraphManifests
 	const files = depGraphManifests.edges
 	let index = 0
+
+	const repoUpdateTime = repo.pushedAt
+
 	// iterate through all files in repo to find the ones with package.json
 	for (const file of files) {
 		const blobPath = file.node.blobPath;
@@ -119,11 +122,11 @@ function getRepoDependencies(repo: BranchManifest) {
 
 					if (depCount > 0) {
 						const dependencies = file.node.dependencies.nodes
-						const blobPathDep = blobPathDeps(subPath, subPathName, blobPath, dependencies)
+						const blobPathDep = blobPathDeps(subPath, subPathName, blobPath, repoUpdateTime, dependencies)
 						repoDepObj.packageMap.get(packageManager.name)?.push(blobPathDep)
 					} else {
 						// currently includes package.json files with no dependencies
-						const blobPathDep = blobPathDeps(subPath, subPathName, blobPath, [])
+						const blobPathDep = blobPathDeps(subPath, subPathName, blobPath, repoUpdateTime, [])
 						repoDepObj.packageMap.get(packageManager.name)?.push(blobPathDep)
 					}
 				}
@@ -364,6 +367,7 @@ export async function scrapeOrganisation(config: ReturnType<typeof loadConfig>, 
 						name: subRepo.realName,
 						oldName: name + (subRepo.subPath == "" ? "" : "(" + subRepo.subPath + ")"),
 						version: subRepo.version,
+						lastUpdated: subRepo.pushedAt, //lastUpdated refers to the last time we deemed something changed the repository, which in this case is a push.
 						link: repo.manifest.url,
 						isArchived: repo.manifest.isArchived,
 						dependencies: deps
@@ -408,10 +412,10 @@ export async function getJsonStructure(accessToken: string, config: Configuratio
 	// allDeps: list of dependencies to be given to package APIs
 	const packageDeps = mergeDependenciesLists(allDeps);
 
-	let depDataMap: Map<string, Map<string, {version: string}>> = new Map()
-	if(toUse.includes("NPM") && packageDeps.has("NPM")){ depDataMap.set("NPM", await getDependenciesNpm(packageDeps.get("NPM") as string[], rateLimiter)) }
-	if(toUse.includes("PYPI") && packageDeps.has("PYPI")){ depDataMap.set("PYPI", await getDependenciesPyPI(packageDeps.get("PYPI") as string[], rateLimiter)) }
-	if(toUse.includes("RUBYGEMS") && packageDeps.has("RUBYGEMS")){ depDataMap.set("RUBYGEMS", await getDependenciesRubyGems(packageDeps.get("RUBYGEMS") as string[], rateLimiter)) }
+	let depDataMap: Map<string, Map<string, {version: string, link: string}>> = new Map()
+	if(toUse.includes("NPM") && packageDeps.has("NPM")){ depDataMap.set("NPM", await getDependenciesNpm(packageDeps.get("NPM") as string[], rateLimiter, config)) }
+	if(toUse.includes("PYPI") && packageDeps.has("PYPI")){ depDataMap.set("PYPI", await getDependenciesPyPI(packageDeps.get("PYPI") as string[], rateLimiter, config)) }
+	if(toUse.includes("RUBYGEMS") && packageDeps.has("RUBYGEMS")){ depDataMap.set("RUBYGEMS", await getDependenciesRubyGems(packageDeps.get("RUBYGEMS") as string[], rateLimiter, config)) }
 
 	//Wait for all requests to finish
 	console.log("Waiting for all requests to finish");

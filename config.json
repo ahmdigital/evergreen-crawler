@@ -1,3 +1,6 @@
 {
-	"targetOrganisation": "evergreen-test-environment"
+	"targetOrganisation": "evergreen-test-environment",
+	"npmURL": "",
+	"pipURL": "",
+	"rubygemsURL": ""
 }

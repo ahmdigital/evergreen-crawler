@@ -57,6 +57,7 @@ export type UpperBranchManifest = {
 	name: string,
 	stargazerCount: number,
 	updatedAt: string
+	pushedAt: string
 }
 
 export type BranchManifest = UpperBranchManifest & {dependencyGraphManifests: DependencyGraphManifests}
