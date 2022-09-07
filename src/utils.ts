@@ -28,6 +28,13 @@ export function loadConfig(): Configuration{
 		throw new Error("config.json file not found")
 	}
 }
+export function readFile(filename: string): any {
+	try {
+		return fs.readFileSync(filename, "utf-8") as any;
+	} catch(e){
+		throw new Error(`cannot read file ${filename}`)
+	}
+}
 
 export function writeFile(filename: string, data: string){
 	try{

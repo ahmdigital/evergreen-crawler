@@ -21,7 +21,8 @@
 		"target": "es5",
 		"experimentalDecorators": true,
 		"downlevelIteration": true,
-		"sourceMap": true
+		"sourceMap": true,
+		"incremental": true
 	},
 	"include": [
 		"src/**/*.ts"
