@@ -41,19 +41,22 @@ async function getRealNames(repoList: ReturnType<typeof getAllRepoDeps>, config:
 				.then(content => {
 					const name = content?.name || ""
 					const version = content?.version || ""
-					return { name: name,
-						 version: version
-						}
+					const languageVersion = content?._nodeVersion || undefined
+					return {
+						name: name,
+						version: version,
+						languageVersion: languageVersion
+					}
 				}
 			))
 		}
 
 		await Promise.allSettled(realDataPromises)
-		const realData: { name: string, version:string}[] = []
+		const realData: { name: string, version:string, languageVersion?:string}[] = []
 		for (const d of realDataPromises){
 			realData.push(await d.then(
 				function name(params:any) {
-					return {name: params.name, version: params.version}
+					return {name: params.name, version: params.version, languageVersion: params.languageVersion}
 				},
 				function name(params:any) {
 					return {name: "", version: ""}
@@ -72,6 +75,7 @@ async function getRealNames(repoList: ReturnType<typeof getAllRepoDeps>, config:
 					try{
 						subRepo.realName = realData[i].name
 						subRepo.version = realData[i].version
+						subRepo.languageVersion = realData[i].languageVersion
 					} catch{
 						console.log(realData)
 						console.log(i)
@@ -87,11 +91,24 @@ async function getRealNames(repoList: ReturnType<typeof getAllRepoDeps>, config:
 // returns object with repo name and list of blob paths ending with package.json and blob path's dependencies
 function getRepoDependencies(repo: BranchManifest) {
 	function blobPathDeps(subPath: string, subPathName: string, blobPath: string, pushedAt: string, deps: DependencyGraphDependency[] ) {
-		return { subPath: subPath, subPathName: subPathName, blobPath: blobPath, version: "", pushedAt: pushedAt, dependencies: deps, realName: ""}
+		return { subPath: subPath, subPathName: subPathName, blobPath: blobPath, version: "", languageVersion: undefined, pushedAt: pushedAt, dependencies: deps, realName: ""}
 	}
 
 	let repoDepObj: {
-		manifest: UpperBranchManifest, packageMap: Map<string, ReturnType<typeof blobPathDeps>[]>
+		manifest: UpperBranchManifest,
+		packageMap: Map<
+			string, 
+			{
+				subPath: string,
+				subPathName: string,
+				blobPath: string,
+				version: string,
+				languageVersion?: string,
+				pushedAt: string,
+				dependencies: DependencyGraphDependency[],
+				realName: string
+			}[]
+		>
 	} = { manifest: repo as UpperBranchManifest, packageMap: new Map() }
 
 	// repoDepObj.packageMap = new Map()
@@ -369,6 +386,7 @@ export async function scrapeOrganisation(config: ReturnType<typeof loadConfig>, 
 						version: subRepo.version,
 						lastUpdated: subRepo.pushedAt, //lastUpdated refers to the last time we deemed something changed the repository, which in this case is a push.
 						link: repo.manifest.url,
+						languageVersion: subRepo.languageVersion,
 						isArchived: repo.manifest.isArchived,
 						dependencies: deps
 					}
