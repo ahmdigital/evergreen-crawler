@@ -1,6 +1,6 @@
 {
   "name": "evergreen-org-crawler",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -26,5 +26,8 @@
     "inquirer": "^8.2.4",
     "node-fetch": "^3.2.10",
     "query-registry": "^2.6.0"
+  },
+  "engines": {
+    "node": ">=14.17.0"
   }
 }
