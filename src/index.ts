@@ -1,11 +1,14 @@
 import { TokenBucket } from "./rate-limiting/token-bucket";
-import { getAccessToken, loadConfig, writeFile, Configuration, sleep, readFile } from "./utils";
+import { getAccessToken, loadConfig, writeFile, Configuration, sleep, readFile, reviver, replacer } from "./utils";
 import { generateDependencyTree } from "./outputData";
 import { getDependenciesNpm, getDependenciesPyPI, Repository, APIParameters, PackageRateLimiter, getDependenciesRubyGems, packageManagerFiles } from "./packageAPI";
 import { DependencyGraphDependency, GraphResponse, OrgRepos, RepoEdge, BranchManifest, UpperBranchManifest, queryDependencies, queryRepositories, queryRepoManifest, RepoManifest, queryRepoManifestRest } from "./graphQLAPI"
 
 type LastTimeUpdated = {
-	[repoName: string]: string;
+	[repoName: string]: {
+		lastUpdated: string,
+		deps?: ReturnType<typeof getRepoDependencies>
+	};
   }
 
 // returns list of repo objects
@@ -27,7 +30,7 @@ function getRepos(response: GraphResponse) {
 async function getRealNames(repoList: ReturnType<typeof getAllRepoDeps>, config: ReturnType<typeof loadConfig>, accessToken: string, tokenBucket: TokenBucket){
 	for (const repo of repoList) {
 		let pathStrings: string[] = []
-		for (const [packageManager, depList] of repo.packageMap) {
+		for (const [packageManager, depList] of Object.entries(repo.packageMap)) {
 			if(packageManager == "RUBYGEMS"){ continue }
 			for (const subRepo of depList) {
 				pathStrings.push(subRepo.subPath)
@@ -66,7 +69,7 @@ async function getRealNames(repoList: ReturnType<typeof getAllRepoDeps>, config:
 		}
 
 		let i = 0
-		for (const [packageManager, depList] of repo.packageMap) {
+		for (const [packageManager, depList] of Object.entries(repo.packageMap)) {
 			if(packageManager == "RUBYGEMS"){
 				for (const subRepo of depList) {
 					//TODO: Get name from the X.gemspec file in the same repo, as X is the name we need
@@ -94,9 +97,12 @@ function getRepoDependencies(repo: BranchManifest) {
 		return { subPath: subPath, subPathName: subPathName, blobPath: blobPath, version: "", pushedAt: pushedAt, dependencies: deps, realName: ""}
 	}
 
+	type packageMap = {
+		[packageManager: string]: ReturnType<typeof blobPathDeps>[]
+	  }
 	let repoDepObj: {
-		manifest: UpperBranchManifest, packageMap: Map<string, ReturnType<typeof blobPathDeps>[]>
-	} = { manifest: repo as UpperBranchManifest, packageMap: new Map() }
+		manifest: UpperBranchManifest, packageMap: packageMap
+	} = { manifest: repo as UpperBranchManifest, packageMap: {} }
 
 	// repoDepObj.packageMap = new Map()
 
@@ -120,18 +126,18 @@ function getRepoDependencies(repo: BranchManifest) {
 					console.log(blobPath + ", " + subPathName + ext)
 					const depCount = file.node.dependencies.totalCount
 
-					if (!repoDepObj.packageMap.has(packageManager.name)) {
-						repoDepObj.packageMap.set(packageManager.name, [])
+					if (!repoDepObj.packageMap[packageManager.name]) {
+						repoDepObj.packageMap[packageManager.name] = []
 					}
 
 					if (depCount > 0) {
 						const dependencies = file.node.dependencies.nodes
 						const blobPathDep = blobPathDeps(subPath, subPathName, blobPath, repoUpdateTime, dependencies)
-						repoDepObj.packageMap.get(packageManager.name)?.push(blobPathDep)
+						repoDepObj.packageMap[packageManager.name]?.push(blobPathDep)
 					} else {
 						// currently includes package.json files with no dependencies
 						const blobPathDep = blobPathDeps(subPath, subPathName, blobPath, repoUpdateTime, [])
-						repoDepObj.packageMap.get(packageManager.name)?.push(blobPathDep)
+						repoDepObj.packageMap[packageManager.name]?.push(blobPathDep)
 					}
 				}
 			}
@@ -145,17 +151,23 @@ function getRepoDependencies(repo: BranchManifest) {
 function getAllRepoDeps(repoList: BranchManifest[], lastTimeUpdated: LastTimeUpdated) {
 	let all_dependencies: ReturnType<typeof getRepoDependencies>[] = []
 	for (const repo of repoList) {
-		if ( lastTimeUpdated[repo.name] && Date.parse(lastTimeUpdated[repo.name]) >= Date.parse(repo.pushedAt )) {
-			continue
+		if ( lastTimeUpdated[repo.name] && Date.parse(lastTimeUpdated[repo.name].lastUpdated) >= Date.parse(repo.pushedAt)) {
+			if (lastTimeUpdated[repo.name].deps){
+				all_dependencies.push(lastTimeUpdated[repo.name].deps!)
+			}
+			else{
+				continue
+			}
 		}
 		else{
-			lastTimeUpdated[repo.name] = repo.pushedAt
 			const deps = getRepoDependencies(repo)
-			if (deps.packageMap.size > 0) {
+			if (Object.keys(deps.packageMap).length > 0) {
 				all_dependencies.push(deps)
+				lastTimeUpdated[repo.name] = {lastUpdated: repo.pushedAt, deps: deps}
 			}
 		}
 	}
+	// writeFile(`all_dependencies_cached.json`, JSON.stringify(all_dependencies));
 	return all_dependencies
 }
 
@@ -343,6 +355,7 @@ export async function scrapeOrganisation(config: ReturnType<typeof loadConfig>, 
 		// TODO: use json()
 		lastTimeUpdated = JSON.parse(readFile(`${config.targetOrganisation}.json`)) as LastTimeUpdated
 	} catch (error) {
+		console.log(`Couldn't load cached file ${error}`)
 		lastTimeUpdated = {}
 	}
 
@@ -367,13 +380,14 @@ export async function scrapeOrganisation(config: ReturnType<typeof loadConfig>, 
 		const repoList = getRepos(response);
 
 		const allRepoDeps = getAllRepoDeps(repoList, lastTimeUpdated);
+		console.log("finished getting repoList")
 
 		await getRealNames(allRepoDeps, config, accessToken, tokenBucket);
 
 		for (const repo of allRepoDeps) {
 			const name = repo.manifest.name
 
-			for (const [packageManager, depList] of repo.packageMap) {
+			for (const [packageManager, depList] of Object.entries(repo.packageMap)) {
 				for (const subRepo of depList) {
 					let deps: Map<string, string> = new Map();
 
@@ -385,7 +399,7 @@ export async function scrapeOrganisation(config: ReturnType<typeof loadConfig>, 
 						name: subRepo.realName,
 						oldName: name + (subRepo.subPath == "" ? "" : "(" + subRepo.subPath + ")"),
 						version: subRepo.version,
-						lastUpdated: subRepo.pushedAt, //lastUpdated refers to the last time we deemed something changed the repository, which in this case is a push.
+						lastUpdated: subRepo.pushedAt, //lastUpdated represents the date and time of the last commit
 						link: repo.manifest.url,
 						isArchived: repo.manifest.isArchived,
 						dependencies: deps

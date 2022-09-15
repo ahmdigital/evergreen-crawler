@@ -195,9 +195,40 @@ async function getDependencies(dependencies: string[], rateLimiter: PackageRateL
 		return depMap
 	}
 
+async function getDependenciesNPMSio(dependencies: string[], rateLimiter: PackageRateLimiter, baseUrl: string): Promise<Map<string, { version: string; link: string; }>> {
+		let depMap: Map<string, { version: string, link: string }> = new Map()
+
+		await rateLimiter.npm.tokenBucket.waitForTokens(1)
+
+		const requestOptions = {
+		method: 'POST',
+		headers: {
+			"Accept": "application/json",
+			"Content-Type": "application/json"
+			},
+			body: JSON.stringify(dependencies)
+		};
+		// const depList: {name: string, data: {version: string, link: string}}[] = []
+
+		await fetch("https://api.npms.io/v2/package/mget", requestOptions)
+		.then(response => response.json())
+		.then(response => {
+			const tempList: any  = []
+			for (const dependency in response) {
+				const temp = { name: dependency, data: { version: response[dependency].collected.metadata.version, link: baseUrl + "/package/" + dependency } }
+				depMap.set(temp.name, temp.data)
+			}
+		})
+		.catch(error => console.log('Error fetching dependencies from npms.io:', error));
+
+		return depMap
+	}
+
+
 //Calls the npm API for all dependencies in the given list
 export async function getDependenciesNpm(dependencies: string[], rateLimiter: PackageRateLimiter, config: Configuration) {
-	return getDependencies(dependencies, rateLimiter, queryDependencyNpm, config.npmURL ?? "")
+	// return getDependencies(dependencies, rateLimiter, queryDependencyNpm, config.npmURL ?? "")
+	return getDependenciesNPMSio(dependencies, rateLimiter, config.npmURL ?? "")
 }
 
 //Calls the PyPI API for all dependencies in the given list
