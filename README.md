@@ -1,10 +1,10 @@
 # Organisation Crawler
 
-The organisation Crawler uses the [GitHub GraphQL API](https://docs.GitHub.com/en/GraphQL) to extract all of a GitHub organisation's repositories and their dependencies. The current version of the dependencies are found using `DependencyGraphManifest` GraphQL object. The latest versions of the dependencies are found using calls to the npm API.
+[![Main](https://github.com/ahm-monash/crawler/actions/workflows/main.yml/badge.svg)](https://github.com/ahm-monash/crawler/actions/workflows/main.yml)
 
-The information is outputted to a `response.json` file which has a [schema](#output-schema) .
+The organisation Crawler uses the [GitHub GraphQL API](https://docs.GitHub.com/en/GraphQL) to extract all of a GitHub organisation's repositories and their dependencies. The current version of the dependencies are found using `DependencyGraphManifest` GraphQL object. The latest versions of the dependencies are found using calls to the npm/rubygem/pypi API.
 
-The current goal is to have the crawler run on the the frontend
+The information is outputted to a `cachedData.json` file which has a [schema](#output-schema) .
 
 ## Configuration
 	targetOrganisation: the name of the GitHub organisation to crawl
@@ -14,17 +14,11 @@ The current goal is to have the crawler run on the the frontend
 
 ## TODO
 ### Improvements
-- [x] Pagination
-- [x] Rate Limiter for GitHub
-- [ ] Default Branch
-- [x] Error handling
-  - [x] invalid or expired token
 - [ ] Fetch all dependencies, currently cut off limit is 250 for each manifest file
 - [ ] Slack alert when a dependency is two majors behind
 `
 #### Potential
 - [ ] Dedicated GraphQL file
-- [ ] Store results into into a database
 
 ## Package Managers support
 
@@ -58,7 +52,7 @@ The `-n` allows you to skip git hooks.
 - Put your token inside the a .env file,  and add to .gitignore
 - run `npm install` to install the necessary dependencies
 - run `tsc -w` or `npx tsc -w` (if npm is not installed globally on your device) to let TypeScript compile the code and watch for changes. This will create the build folder
-- run `node ./build/index.js` in a new terminal tab to execute the crawler
+- run `npm start` or `node ./build/index.js` in a new terminal tab to execute the crawler
 
 If you want to play around, simply edit the code (tsc will compile it automatically as long as `tsc -w` is running), finally run `node ./build/index.js` again.
 
@@ -97,10 +91,12 @@ Use the flag `--onlyFailures` to only run failed tests in the previous execution
 
 
 ## Limitations
-The dashboard depends on [Dependency Graph manifest](https://docs.github.com/en/graphql/reference/objects#dependencygraphmanifest), which has some limitations, for example it cannot detect dependencies which:
-* Javascript:
-  * use `"foo": "github:user/repo`
-  * use `"foo": "user/repo"`
-  * use `"foo": "fileSystemPath"`
-* Python
-  * use `foo fileSystemPath`
+* The dashboard depends on [Dependency Graph manifest](https://docs.github.com/en/graphql/reference/objects#dependencygraphmanifest), which has some limitations, for example it cannot detect dependencies which:
+  * Javascript:
+    * use `"foo": "github:user/repo`
+    * use `"foo": "user/repo"`
+    * use `"foo": "fileSystemPath"`
+  * Python
+    * use `foo fileSystemPath`
+* There is a [limit](https://github.community/t/dependency-graph-manifest-files-limit/133284/77?page=3) on the number of manifest files that can be fetched (link is dead)
+* [Other dependency graph limits](https://docs.github.com/en/code-security/supply-chain-security/understanding-your-software-supply-chain/troubleshooting-the-dependency-graph)
