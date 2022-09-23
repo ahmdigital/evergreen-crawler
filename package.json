@@ -24,6 +24,7 @@
     "es6-map": "^0.1.5",
     "graphql": "^16.5.0",
     "inquirer": "^8.2.4",
+    "libnpmhook": "^8.0.4",
     "node-fetch": "^3.2.10",
     "query-registry": "^2.6.0"
   }

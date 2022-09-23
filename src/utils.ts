@@ -1,4 +1,5 @@
 import * as fs from "fs";
+import { Repository } from "query-registry";
 
 /**
  * Read the token from the ".env" file.
@@ -60,6 +61,42 @@ export async function replacer(key: any, value: any) {
   } else {
     return value.toString();
   }
+}
+
+// export function convertToMap(allDepsJSON:any) {
+// 	let allDepsMap = new Map<string, Repository[]>()
+
+// 	for (const key of allDepsJSON) {
+
+// 		const dependencies = new Map<string, string>()
+// 		for (const d of allDepsJSON[key].dependencies) {
+// 			dependencies.set(d,  allDepsJSON[key].dependencies[d])
+// 		}
+// 		const tempObject = allDepsJSON[key]
+// 		tempObject.dependencies = dependencies
+
+// 		allDepsMap.set(key, tempObject)
+// 	}
+// 	return allDepsMap
+
+// }
+
+
+export function objectToMap(allDepsJSON: any) {
+	let allDepsMap = new Map<string, any>()
+
+	for (const [key, value] of Object.entries(allDepsJSON)) {
+		allDepsMap.set(key, value)
+	}
+	return allDepsMap
+}
+
+export function mapToObject(map: Map<string, any>) {
+	var obj: {[k: string]: any} = {};
+	for(const [key, value] of map){
+		obj[key] = value
+	}
+	return obj
 }
 
 // function stringifyMap(myMap:any ) {
