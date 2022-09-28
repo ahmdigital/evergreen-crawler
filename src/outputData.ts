@@ -2,7 +2,7 @@ import { Repository, getDependenciesNpm } from "./packageAPI";
 
 export type IdDepMap = Map<
 	number,
-	{ oldName: string, version: string; lastUpdated: string; link: string; languageVersion: string|undefined, internal: boolean; archived: boolean }
+	{ oldName: string|undefined, version: string; lastUpdated: string; link: string; languageVersion: string|undefined, internal: boolean; archived: boolean }
 >
 
 export type NameIdMap = Map<string, number>
@@ -19,9 +19,13 @@ export function depDataToJson(
 		const thisData = data.get(id);
 		res += '"' + id.toString() + '": {';
 		res += '"name": "' + name + '",';
-		res += '"oldName": "' + thisData?.oldName + '",';
+		if(thisData?.oldName){
+			res += '"oldName": "' + thisData?.oldName + '",';
+		}
 		res += '"version": "' + thisData?.version + '",';
-		res += '"languageVersion": "' + thisData?.languageVersion + '",';
+		if(thisData?.languageVersion){
+			res += '"languageVersion": "' + thisData?.languageVersion + '",';
+		}
 		res += '"lastUpdated": "' + thisData?.lastUpdated + '",';
 		res += '"link": "' + thisData?.link + '",';
 		res += '"internal": ' + thisData?.internal + ",";
@@ -86,7 +90,7 @@ export function generateDependencyTree(
 			if (!depNameMap.has(depName)) {
 				depNameMap.set(depName, depNameMap.size);
 				depData.set(depNameMap.get(depName)!, {
-					oldName: "",
+					oldName: undefined,
 					version: "",
 					lastUpdated: "",
 					link: "",
