@@ -4,6 +4,9 @@ import { generateDependencyTree } from "./outputData";
 import { getDependenciesNpm, getDependenciesPyPI, Repository, APIParameters, PackageRateLimiter, getDependenciesRubyGems, packageManagerFiles } from "./packageAPI";
 import { DependencyGraphDependency, GraphResponse, OrgRepos, RepoEdge, BranchManifest, UpperBranchManifest, queryDependencies, queryRepositories, queryRepoManifest, RepoManifest, queryRepoManifestRest } from "./graphQLAPI"
 
+//Used to send an error message to the frontend - do no put private inforamtion here
+export let error: {msg: string | undefined} = {msg: undefined}
+
 // returns list of repo objects
 function getRepos(response: GraphResponse) {
 	const allRepos: RepoEdge[] = response?.organization?.repositories?.edges;
@@ -323,7 +326,9 @@ async function fetchingData(config: { targetOrganisation: string; }, accessToken
 			throw new Error("Couldn't fetch any repo :(");
 		}
 		else if (failedCursors.length > 0) {
-			console.warn(`Failed to retrieve ${failedCursors.length} cursors out of ${promises.length} cursors.\nfailed cursors : ${failedCursors}`);
+			let msg = `Failed to retrieve ${failedCursors.length} cursors out of ${promises.length} cursors.\nfailed cursors : ${failedCursors}`
+			console.warn(msg);
+			error.msg = msg
 		}
 
 		return {responses, failedCursors}
@@ -406,7 +411,9 @@ export async function scrapeOrganisation(config: ReturnType<typeof loadConfig>, 
 	return allDeps
 }
 
-export async function getJsonStructure(accessToken: string, config: Configuration, toUse: string[] | null = null){
+export async function getJsonStructure(accessToken: string, config: Configuration, toUse: string[] | null = null, crawlStart: string | null = null){
+	const startTime = Date.now();
+
 	console.log("Configuration:")
 	console.log(config)
 	console.log(config.targetOrganisation)
@@ -421,7 +428,9 @@ export async function getJsonStructure(accessToken: string, config: Configuratio
 		toUse = ["NPM", "PYPI", "RUBYGEMS"]
 	}
 
-	const startTime = Date.now();
+	if(crawlStart == null){
+		crawlStart = startTime.toString()
+	}
 
 	// ==== START: Extracting dependencies from Github graphql response === //
 
@@ -451,6 +460,9 @@ export async function getJsonStructure(accessToken: string, config: Configuratio
 	let jsonResult: string = ""
 
 	jsonResult += "{"
+	jsonResult += "\"aux\": {"
+	jsonResult += "\"crawlStart\": \"" + crawlStart + "\"" + (error.msg ? ", \"error\": \"" + error.msg + "\"" : "")
+	jsonResult += "}, "
 	jsonResult += "\"npm\": ["
 	jsonResult += !(toUse.includes("NPM") && allDeps.has("NPM")) ? "" : generateDependencyTree(allDeps.get("NPM") as Repository[], depDataMap.get("NPM") as any)
 	jsonResult += "], "
@@ -467,9 +479,13 @@ export async function getJsonStructure(accessToken: string, config: Configuratio
 
 //Main function
 async function main() {
-	const accessToken = getAccessToken()
-	const config = loadConfig()
-	writeFile("cachedData.json", await getJsonStructure(accessToken, config));
+	try{
+		const accessToken = getAccessToken()
+		const config = loadConfig()
+		writeFile("cachedData.json", await getJsonStructure(accessToken, config));
+	} catch{
+		writeFile("cachedData.json", "{\"aux\":{ \"crawlStart\": \"" + Date.now().toString() + "\", \"error\": \"" + error.msg + "\"}")
+	}
 }
 
 if (require.main === module) {
