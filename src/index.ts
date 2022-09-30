@@ -41,7 +41,8 @@ async function getRealNames(repoList: ReturnType<typeof getAllRepoDeps>, config:
 				.then(content => {
 					const name = content?.name || ""
 					const version = content?.version || ""
-					const languageVersion = content?._nodeVersion || undefined
+					const languageVersion = content?.engines.node || undefined
+					
 					return {
 						name: name,
 						version: version,
@@ -90,25 +91,24 @@ async function getRealNames(repoList: ReturnType<typeof getAllRepoDeps>, config:
 // get dependencies of a repo obj, used by function getAllRepoDeps(repoList)
 // returns object with repo name and list of blob paths ending with package.json and blob path's dependencies
 function getRepoDependencies(repo: BranchManifest) {
-	function blobPathDeps(subPath: string, subPathName: string, blobPath: string, pushedAt: string, deps: DependencyGraphDependency[] ) {
+	type PackageData = {
+		subPath: string,
+		subPathName: string,
+		blobPath: string,
+		version: string,
+		languageVersion?: string,
+		pushedAt: string,
+		dependencies: DependencyGraphDependency[],
+		realName: string
+	}
+
+	function blobPathDeps(subPath: string, subPathName: string, blobPath: string, pushedAt: string, deps: DependencyGraphDependency[]): PackageData {
 		return { subPath: subPath, subPathName: subPathName, blobPath: blobPath, version: "", languageVersion: undefined, pushedAt: pushedAt, dependencies: deps, realName: ""}
 	}
 
 	let repoDepObj: {
 		manifest: UpperBranchManifest,
-		packageMap: Map<
-			string, 
-			{
-				subPath: string,
-				subPathName: string,
-				blobPath: string,
-				version: string,
-				languageVersion?: string,
-				pushedAt: string,
-				dependencies: DependencyGraphDependency[],
-				realName: string
-			}[]
-		>
+		packageMap: Map<string, PackageData[]>
 	} = { manifest: repo as UpperBranchManifest, packageMap: new Map() }
 
 	// repoDepObj.packageMap = new Map()
