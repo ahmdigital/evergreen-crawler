@@ -1,6 +1,6 @@
 import { TokenBucket } from "./rate-limiting/token-bucket";
 import { getAccessToken, loadConfig, writeFile, Configuration, sleep } from "./utils";
-import { generateDependencyTree } from "./outputData";
+import { auxData, generateDependencyTree } from "./outputData";
 import { getDependenciesNpm, getDependenciesPyPI, Repository, APIParameters, PackageRateLimiter, getDependenciesRubyGems, packageManagerFiles } from "./packageAPI";
 import { DependencyGraphDependency, GraphResponse, OrgRepos, RepoEdge, BranchManifest, UpperBranchManifest, queryDependencies, queryRepositories, queryRepoManifest, RepoManifest, queryRepoManifestRest } from "./graphQLAPI"
 
@@ -460,12 +460,12 @@ export async function getJsonStructure(accessToken: string, config: Configuratio
 	let jsonResult: string = ""
 
 	jsonResult += "{"
-	jsonResult += "\"aux\": {"
-	jsonResult += "\"crawlStart\": \"" + crawlStart + "\"" + (error.msg ? ", \"error\": \"" + error.msg + "\"" : "")
-	jsonResult += "}, "
+	jsonResult += "\"aux\":"
+	jsonResult += auxData(config.targetOrganisation, crawlStart, error.msg)
+	jsonResult += ","
 	jsonResult += "\"npm\": ["
 	jsonResult += !(toUse.includes("NPM") && allDeps.has("NPM")) ? "" : generateDependencyTree(allDeps.get("NPM") as Repository[], depDataMap.get("NPM") as any)
-	jsonResult += "], "
+	jsonResult += "],"
 	jsonResult += "\"PyPI\": ["
 	jsonResult += !(toUse.includes("PYPI") && allDeps.has("PYPI")) ? "" : generateDependencyTree(allDeps.get("PYPI") as Repository[], depDataMap.get("PYPI") as any)
 	jsonResult += "],"

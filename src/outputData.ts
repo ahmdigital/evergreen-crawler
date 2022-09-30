@@ -7,6 +7,17 @@ export type IdDepMap = Map<
 
 export type NameIdMap = Map<string, number>
 
+export function auxData(orgName: string, crawlStart: string, error?: string){
+	let aux = {
+		orgName: orgName,
+		orgLink: "https://github.com/" + orgName,
+		crawlStart: crawlStart,
+		...(error ? {error: error} : {})
+	}
+
+	return JSON.stringify(aux)
+}
+
 export function depDataToJson(
 	nameMap: NameIdMap,
 	data: IdDepMap
