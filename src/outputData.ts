@@ -81,7 +81,9 @@ export function generateDependencyTree(
 		} else {
 			depData.get(depNameMap.get(d!.name)!)!.link = d!.link;
 			depData.get(depNameMap.get(d!.name)!)!.lastUpdated = d!.lastUpdated;
+			depData.get(depNameMap.get(d!.name)!)!.oldName = d!.oldName;
 			depData.get(depNameMap.get(d!.name)!)!.internal = true;
+			depData.get(depNameMap.get(d!.name)!)!.archived = d!.isArchived;
 		}
 
 		let deps = [];
