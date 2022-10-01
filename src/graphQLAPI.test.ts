@@ -83,7 +83,7 @@ test("test overall output of the crawler library", async () => {
 
 	const data = JSON.parse(await getJsonStructure(accessToken, {targetOrganisation: organisation}))
   if (data.npm.length > 0){
-    expect(Object.keys(data.npm[0]).length).toBe(280);
+    expect(Object.keys(data.npm[0]).length).toBe(282);
     expect(data.npm[1].length).toBe(19);
 
   }
