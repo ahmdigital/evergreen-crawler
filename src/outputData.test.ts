@@ -73,9 +73,9 @@ test("Test dependency map JSON", async () => {
 		"data": [
 			{
 				"0": { "archived": false, "internal": false, "link": "www.w.com", "lastUpdated": "", "name": "w", "version": "9.20.4"},
-				"1": {"archived": false, "internal": true, "link": "www.x.com", "lastUpdated": "", "name": "x", "version": "1.2.3.4"},
-				"2": {"archived": false, "internal": true, "link": "www.y.com", "lastUpdated": "", "name": "y", "version": ""},
-				"3": {"archived": false, "internal": true, "link": "www.z.com", "lastUpdated": "", "name": "z", "version": ""},
+				"1": {"archived": false, "internal": true, "link": "www.x.com", "lastUpdated": "", "name": "x", "oldName": "#x.js", "version": "1.2.3.4"},
+				"2": {"archived": false, "internal": true, "link": "www.y.com", "lastUpdated": "", "name": "y", "oldName": "#y.js", "version": ""},
+				"3": {"archived": false, "internal": true, "link": "www.z.com", "lastUpdated": "", "name": "z", "oldName": "#z.js", "version": ""},
 			}, [
 				{ "dep": 1, "dependencies":  [[2, "1.2.3"], [3, "4.1.3"], [0, "9.19.1" ]]},
 				{ "dep": 2, "dependencies":  [[ 3, "4.1.2" ]], },

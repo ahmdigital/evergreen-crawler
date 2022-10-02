@@ -68,7 +68,7 @@ RepoMap: Map<ID, Object> = {
         internal: bool = IS_INTERNAL,
         archived: bool = IS_ARCHIVED,
         languageVersion?: string = "LANGUAGE_VERSION",
-        oldName?: string = "OLD_NAME"
+		oldName?: string = "OLD_NAME"
     },
     ...
 }
