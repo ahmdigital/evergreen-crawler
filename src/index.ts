@@ -428,9 +428,7 @@ export async function getJsonStructure(accessToken: string, config: Configuratio
 		toUse = ["NPM", "PYPI", "RUBYGEMS"]
 	}
 
-	if(crawlStart == null){
-		crawlStart = startTime.toString()
-	}
+	crawlStart = crawlStart ?? startTime.toString()
 
 	// ==== START: Extracting dependencies from Github graphql response === //
 
@@ -483,8 +481,15 @@ async function main() {
 		const accessToken = getAccessToken()
 		const config = loadConfig()
 		writeFile("cachedData.json", await getJsonStructure(accessToken, config));
-	} catch{
-		writeFile("cachedData.json", "{\"aux\":{ \"crawlStart\": \"" + Date.now().toString() + "\", \"error\": \"" + error.msg + "\"}")
+	} catch(e){
+		const result = {
+			aux: {
+				crawlStart: Date.now().toString(),
+				error: error.msg
+			}
+		}
+		writeFile("cachedData.json", JSON.stringify(result))
+		console.error(e)
 	}
 }
 
