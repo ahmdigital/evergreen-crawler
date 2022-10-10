@@ -53,6 +53,7 @@ export type Repository = {
 	version: string,
 	lastUpdated: string,
 	link: string,
+	languageVersion?: string,
 	isArchived: boolean,
 	dependencies: Map<string, string>
 }
@@ -70,7 +71,7 @@ export async function queryDependencyNpm(dependency: string, rateLimiter: Packag
 		console.log(e)
 	}
 	baseUrl = baseUrl == "" ? "https://www.npmjs.com" : baseUrl
-	return { name: dependency, data: { version: manifest.version, link: baseUrl + "/package/" + dependency } }
+	return { name: dependency, data: { version: manifest.version, link: baseUrl + "/package/" + dependency, languageVersion: manifest._nodeVersion } }
 }
 
 type PythonPackageVersion = {
@@ -184,7 +185,7 @@ export async function queryDependencyRubyGems(dependency: string, rateLimiter: P
 
 //Calls the given API for all dependencies in the given list
 async function getDependencies(dependencies: string[], rateLimiter: PackageRateLimiter, queryFunc: any, baseUrl: string) {
-		let depMap: Map<string, { version: string, link: string }> = new Map()
+		let depMap: Map<string, { version: string, link: string, languageVersion?: string }> = new Map()
 
 		const depList = await Promise.all(
 			dependencies.map((dependency) => queryFunc(dependency, rateLimiter, baseUrl))

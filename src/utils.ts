@@ -1,6 +1,8 @@
 import * as fs from "fs";
 import { Repository } from "query-registry";
 
+import {error} from "./index"
+
 /**
  * Read the token from the ".env" file.
  * @returns return the token
@@ -10,7 +12,9 @@ export function getAccessToken(): string {
 	try {
 		return process.env.GH_TOKEN!.toString().trim()
 	} catch (e) {
-		throw new Error("Could not read token from env variables")
+		const msg = "Could not read token from env variables"
+		error.msg = msg
+		throw new Error(msg)
 	}
 }
 
@@ -26,7 +30,9 @@ export function loadConfig(): Configuration{
 	try {
 		return JSON.parse(fs.readFileSync("./config.json", "utf-8")) as Configuration;
 	} catch(e){
-		throw new Error("config.json file not found")
+		const msg = "config.json file not found"
+		error.msg = msg
+		throw new Error(msg)
 	}
 }
 export function readFile(filename: string): any {

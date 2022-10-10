@@ -1,6 +1,6 @@
 import { TokenBucket } from "./rate-limiting/token-bucket";
 import { getAccessToken, loadConfig, writeFile, Configuration, sleep, readFile, objectToMap } from "./utils";
-import { generateDependencyTree } from "./outputData";
+import { auxData, generateDependencyTree } from "./outputData";
 import { getDependenciesNpm, getDependenciesPyPI, Repository, APIParameters, PackageRateLimiter, getDependenciesRubyGems, packageManagerFiles } from "./packageAPI";
 import { DependencyGraphDependency, GraphResponse, OrgRepos, RepoEdge, BranchManifest, UpperBranchManifest, queryDependencies, queryRepositories, queryRepoManifest, RepoManifest, queryRepoManifestRest } from "./graphQLAPI"
 
@@ -12,6 +12,9 @@ type LastTimeUpdated = {
 		deps?: ReturnType<typeof getRepoDependencies>
 	};
   }
+
+//Used to send an error message to the frontend - do no put private inforamtion here
+export let error: {msg: string | undefined} = {msg: undefined}
 
 // returns list of repo objects
 function getRepos(response: GraphResponse) {
@@ -50,19 +53,23 @@ async function getRealNames(repoList: ReturnType<typeof getAllRepoDeps>, config:
 				.then(content => {
 					const name = content?.name || ""
 					const version = content?.version || ""
-					return { name: name,
-						 version: version
-						}
+					const languageVersion = content?.engines.node || undefined
+					
+					return {
+						name: name,
+						version: version,
+						languageVersion: languageVersion
+					}
 				}
 			))
 		}
 
 		await Promise.allSettled(realDataPromises)
-		const realData: { name: string, version:string}[] = []
+		const realData: { name: string, version:string, languageVersion?:string}[] = []
 		for (const d of realDataPromises){
 			realData.push(await d.then(
 				function name(params:any) {
-					return {name: params.name, version: params.version}
+					return {name: params.name, version: params.version, languageVersion: params.languageVersion}
 				},
 				function name(params:any) {
 					return {name: "", version: ""}
@@ -81,6 +88,7 @@ async function getRealNames(repoList: ReturnType<typeof getAllRepoDeps>, config:
 					try{
 						subRepo.realName = realData[i].name
 						subRepo.version = realData[i].version
+						subRepo.languageVersion = realData[i].languageVersion
 					} catch{
 						console.log(realData)
 						console.log(i)
@@ -95,8 +103,19 @@ async function getRealNames(repoList: ReturnType<typeof getAllRepoDeps>, config:
 // get dependencies of a repo obj, used by function getAllRepoDeps(repoList)
 // returns object with repo name and list of blob paths ending with package.json and blob path's dependencies
 function getRepoDependencies(repo: BranchManifest) {
-	function blobPathDeps(subPath: string, subPathName: string, blobPath: string, pushedAt: string, deps: DependencyGraphDependency[] ) {
-		return { subPath: subPath, subPathName: subPathName, blobPath: blobPath, version: "", pushedAt: pushedAt, dependencies: deps, realName: ""}
+	type PackageData = {
+		subPath: string,
+		subPathName: string,
+		blobPath: string,
+		version: string,
+		languageVersion?: string,
+		pushedAt: string,
+		dependencies: DependencyGraphDependency[],
+		realName: string
+	}
+
+	function blobPathDeps(subPath: string, subPathName: string, blobPath: string, pushedAt: string, deps: DependencyGraphDependency[]): PackageData {
+		return { subPath: subPath, subPathName: subPathName, blobPath: blobPath, version: "", languageVersion: undefined, pushedAt: pushedAt, dependencies: deps, realName: ""}
 	}
 
 	type packageMap = {
@@ -330,7 +349,9 @@ async function fetchingData(config: { targetOrganisation: string; }, accessToken
 			throw new Error("Couldn't fetch any repo :(");
 		}
 		else if (failedCursors.length > 0) {
-			console.warn(`Failed to retrieve ${failedCursors.length} cursors out of ${promises.length} cursors.\nfailed cursors : ${failedCursors}`);
+			let msg = `Failed to retrieve ${failedCursors.length} cursors out of ${promises.length} cursors.\nfailed cursors : ${failedCursors}`
+			console.warn(msg);
+			error.msg = msg
 		}
 
 		return {responses, failedCursors}
@@ -418,6 +439,7 @@ export async function scrapeOrganisation(config: ReturnType<typeof loadConfig>, 
 						version: subRepo.version,
 						lastUpdated: subRepo.pushedAt, //lastUpdated represents the date and time of the last commit
 						link: repo.manifest.url,
+						languageVersion: subRepo.languageVersion,
 						isArchived: repo.manifest.isArchived,
 						dependencies: deps
 					}
@@ -438,7 +460,9 @@ export async function scrapeOrganisation(config: ReturnType<typeof loadConfig>, 
 	return allDeps
 }
 
-export async function getJsonStructure(accessToken: string, config: Configuration, toUse: string[] | null = null){
+export async function getJsonStructure(accessToken: string, config: Configuration, toUse: string[] | null = null, crawlStart: string | null = null){
+	const startTime = Date.now();
+
 	console.log("Configuration:")
 	console.log(config)
 	console.log(config.targetOrganisation)
@@ -453,7 +477,7 @@ export async function getJsonStructure(accessToken: string, config: Configuratio
 		toUse = ["NPM", "PYPI", "RUBYGEMS"]
 	}
 
-	const startTime = Date.now();
+	crawlStart = crawlStart ?? startTime.toString()
 
 	// ==== START: Extracting dependencies from Github graphql response === //
 
@@ -483,9 +507,12 @@ export async function getJsonStructure(accessToken: string, config: Configuratio
 	let jsonResult: string = ""
 
 	jsonResult += "{"
+	jsonResult += "\"aux\":"
+	jsonResult += auxData(config.targetOrganisation, crawlStart, error.msg)
+	jsonResult += ","
 	jsonResult += "\"npm\": ["
 	jsonResult += !(toUse.includes("NPM") && allDeps.has("NPM")) ? "" : generateDependencyTree(allDeps.get("NPM") as Repository[], depDataMap.get("NPM") as any)
-	jsonResult += "], "
+	jsonResult += "],"
 	jsonResult += "\"PyPI\": ["
 	jsonResult += !(toUse.includes("PYPI") && allDeps.has("PYPI")) ? "" : generateDependencyTree(allDeps.get("PYPI") as Repository[], depDataMap.get("PYPI") as any)
 	jsonResult += "],"
@@ -499,9 +526,20 @@ export async function getJsonStructure(accessToken: string, config: Configuratio
 
 //Main function
 async function main() {
-	const accessToken = getAccessToken()
-	const config = loadConfig()
-	writeFile("cachedData.json", await getJsonStructure(accessToken, config));
+	try{
+		const accessToken = getAccessToken()
+		const config = loadConfig()
+		writeFile("cachedData.json", await getJsonStructure(accessToken, config));
+	} catch(e){
+		const result = {
+			aux: {
+				crawlStart: Date.now().toString(),
+				error: error.msg
+			}
+		}
+		writeFile("cachedData.json", JSON.stringify(result))
+		console.error(e)
+	}
 }
 
 if (require.main === module) {
