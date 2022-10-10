@@ -199,7 +199,7 @@ async function getDependencies(dependencies: string[], rateLimiter: PackageRateL
 	}
 
 async function getDependenciesNPMSio(dependencies: string[], rateLimiter: PackageRateLimiter, baseUrl: string): Promise<Map<string, { version: string; link: string; }>> {
-		let depMap: Map<string, { version: string, link: string }> = new Map()
+		let depMap: Map<string, { version: string, link: string, languageVersion?: string }> = new Map()
 
 		await rateLimiter.npm.tokenBucket.waitForTokens(1)
 		// TDOD: limit calls to 250 packages
@@ -218,7 +218,9 @@ async function getDependenciesNPMSio(dependencies: string[], rateLimiter: Packag
 		.then(response => {
 			const tempList: any  = []
 			for (const dependency in response) {
-				const temp = { name: dependency, data: { version: response[dependency].collected.metadata.version, link: baseUrl + "/package/" + dependency } }
+				// @reteppeter how are you getting _nodeVersion from npm,
+				// for example the node version for @sanity/block-content-to-react is not defined in package-lock
+				const temp = { name: dependency, data: { version: response[dependency].collected.metadata.version, link: baseUrl + "/package/" + dependency, languageVersion: undefined } }
 				depMap.set(temp.name, temp.data)
 			}
 		})
@@ -263,8 +265,8 @@ export async function listNPMHooks(token: string) {
 
 //Calls the npm API for all dependencies in the given list
 export async function getDependenciesNpm(dependencies: string[], rateLimiter: PackageRateLimiter, config: Configuration) {
-	// return getDependencies(dependencies, rateLimiter, queryDependencyNpm, config.npmURL ?? "")
-	return getDependenciesNPMSio(dependencies, rateLimiter, config.npmURL ?? "")
+	return getDependencies(dependencies, rateLimiter, queryDependencyNpm, config.npmURL ?? "")
+	// return getDependenciesNPMSio(dependencies, rateLimiter, config.npmURL ?? "")
 }
 
 //Calls the PyPI API for all dependencies in the given list
