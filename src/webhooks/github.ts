@@ -7,7 +7,7 @@ import { Configuration, writeFile, mapToObject } from "../utils"
 export async function handleGitHubWebhookPushEvents(accessToken: string, config: Configuration, payload: any, useCachedData: boolean = false) {
 
     // we only care about the default branch
-    if (payload.ref == payload.repository.default_branch) {
+    if (payload.ref == "refs/heads/" + payload.repository.default_branch) {
         updateCache(accessToken, config, useCachedData)
     }
     else {
