@@ -1,10 +1,10 @@
 import { TokenBucket } from "./rate-limiting/token-bucket";
-import { getAccessToken, loadConfig, writeFile, Configuration, sleep, readFile, reviver, replacer, convertToMap, objectToMap } from "./utils";
+import { getAccessToken, loadConfig, writeFile, Configuration, sleep, readFile, objectToMap } from "./utils";
 import { generateDependencyTree } from "./outputData";
-import { addNPMHook, getDependenciesNpm, getDependenciesPyPI, Repository, APIParameters, PackageRateLimiter, getDependenciesRubyGems, packageManagerFiles, listNPMHooks } from "./packageAPI";
+import { getDependenciesNpm, getDependenciesPyPI, Repository, APIParameters, PackageRateLimiter, getDependenciesRubyGems, packageManagerFiles } from "./packageAPI";
 import { DependencyGraphDependency, GraphResponse, OrgRepos, RepoEdge, BranchManifest, UpperBranchManifest, queryDependencies, queryRepositories, queryRepoManifest, RepoManifest, queryRepoManifestRest } from "./graphQLAPI"
-import { cachedDataVersionTag } from "v8";
-import { handleGitHubWebhookPushes } from "./webhooks/github";
+
+export const scrapeOrgCacheFilename = "scrapeOrganisationCache.json";
 
 type LastTimeUpdated = {
 	[repoName: string]: {
@@ -347,7 +347,7 @@ export async function scrapeOrganisation(config: ReturnType<typeof loadConfig>, 
 	if(useCachedData){
 		try {
 
-			let allDeps = objectToMap(JSON.parse(readFile("scrapeOrganisationCache.json"))) as Map<string, any>
+			let allDeps = objectToMap(JSON.parse(readFile(scrapeOrgCacheFilename))) as Map<string, any>
 			for(let [key, value] of allDeps){
 				for(let dep of value){
 					dep.dependencies = objectToMap(dep.dependencies) as Map<string, string>
@@ -457,7 +457,7 @@ export async function getJsonStructure(accessToken: string, config: Configuratio
 
 	// ==== START: Extracting dependencies from Github graphql response === //
 
-	const allDeps = await scrapeOrganisation(config, accessToken)
+	const allDeps = await scrapeOrganisation(config, accessToken, false)
 
 	// allDeps: list of dependencies to be given to package APIs
 	const packageDeps = mergeDependenciesLists(allDeps);
@@ -499,14 +499,9 @@ export async function getJsonStructure(accessToken: string, config: Configuratio
 
 //Main function
 async function main() {
-	// let result = await listNPMHooks("npm_xxxxxxxxxx")
-	// console.log(result)
 	const accessToken = getAccessToken()
 	const config = loadConfig()
-	await handleGitHubWebhookPushes(accessToken, config, {}, false)
-	await handleGitHubWebhookPushes(accessToken, config, {}, true)
-	// await getJsonStructure(accessToken, config)
-	// writeFile("cachedData.json", await getJsonStructure(accessToken, config));
+	writeFile("cachedData.json", await getJsonStructure(accessToken, config));
 }
 
 if (require.main === module) {

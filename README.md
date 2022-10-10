@@ -104,3 +104,4 @@ The dashboard depends on [Dependency Graph manifest](https://docs.github.com/en/
   * use `"foo": "fileSystemPath"`
 * Python
   * use `foo fileSystemPath`
+* repository_import do not trigger update cache `https://docs.github.com/en/developers/webhooks-and-events/webhooks/webhook-events-and-payloads#repository_import`
