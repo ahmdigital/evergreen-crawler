@@ -1,4 +1,5 @@
 import * as fs from "fs";
+import path from "path";
 import { error } from "./index"
 
 /**
@@ -35,7 +36,7 @@ export function loadConfig(): Configuration {
 }
 export function readFile(filename: string): any {
 	try {
-		return fs.readFileSync(filename, "utf-8") as any;
+		return fs.readFileSync(path.resolve(process.env.DYNAMIC_CACHE_DIR ?? "", filename), "utf-8") as any;
 	} catch (e) {
 		throw new Error(`cannot read file ${filename}: ${e}`)
 	}
@@ -43,7 +44,7 @@ export function readFile(filename: string): any {
 
 export function writeFile(filename: string, data: string) {
 	try {
-		fs.writeFileSync(filename, data)
+		fs.writeFileSync(path.resolve(process.env.DYNAMIC_CACHE_DIR ?? "", filename), data)
 	} catch (e) {
 		throw new Error(`Could not write to file ${filename}: ${e}`)
 	}
