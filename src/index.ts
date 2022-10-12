@@ -6,12 +6,21 @@ import { DependencyGraphDependency, GraphResponse, OrgRepos, RepoEdge, BranchMan
 
 export const scrapeOrgCacheFilename = "scrapeOrganisationCache.json";
 
+// This type will be used to keep track of when was the last time the repository was updated
+// so that it can be used to skip crawling repository all together
 type LastTimeUpdated = {
 	[repoName: string]: {
 		lastUpdated: string,
-		deps?: ReturnType<typeof getRepoDependencies>
+		deps?: ReturnType<typeof getRepoDependencies>,
+		manifests: {
+			[path: string]: {
+				name: string,
+				version: string,
+				languageVersion: string
+			}
+		}
 	};
-  }
+}
 
 //Used to send an error message to the frontend - do no put private inforamtion here
 export let error: {msg: string | undefined} = {msg: undefined}
@@ -32,64 +41,64 @@ function getRepos(response: GraphResponse) {
 	return filteredRepos
 }
 
-async function getRealNames(repoList: ReturnType<typeof getAllRepoDeps>, config: ReturnType<typeof loadConfig>, accessToken: string, tokenBucket: TokenBucket){
+async function getRealNames(repoList: ReturnType<typeof getAllRepoDeps>, config: ReturnType<typeof loadConfig>, accessToken: string, tokenBucket: TokenBucket, lastTimeUpdated: LastTimeUpdated) {
 	for (const repo of repoList) {
 		let pathStrings: string[] = []
 		for (const [packageManager, depList] of Object.entries(repo.packageMap)) {
-			if(packageManager == "RUBYGEMS"){ continue }
+			if (packageManager == "RUBYGEMS") { continue }
 			for (const subRepo of depList) {
 				pathStrings.push(subRepo.subPath)
 			}
 		}
 
 		let realDataPromises: any[] = []
-		const branchName = repo.manifest.defaultBranchRef.name
 		const orgName = config.targetOrganisation
 		const repoName = repo.manifest.name
 		console.log("Trying to query repo: " + repoName)
 
-		for(let i = 0; i < pathStrings.length; i+=1){
-			realDataPromises.push(queryRepoManifestRest(orgName, repoName, pathStrings[i], accessToken, tokenBucket)
-				.then(content => {
-					const name = content?.name || ""
-					const version = content?.version || ""
-					const languageVersion = content?.engines.node || undefined
-					
-					return {
-						name: name,
-						version: version,
-						languageVersion: languageVersion
-					}
-				}
-			))
+		for (let i = 0; i < pathStrings.length; i += 1) {
+			if (lastTimeUpdated[repoName].manifests[pathStrings[i]] && Date.parse(lastTimeUpdated[repoName].lastUpdated) >= Date.parse(repo.manifest.pushedAt)) {
+				realDataPromises.push(
+					new Promise<{ name: string, version: string, languageVersion: string }>((resolve) => resolve(lastTimeUpdated[repoName].manifests[pathStrings[i]]))
+				)
+			}
+			else {
+				realDataPromises.push(queryRepoManifestRest(orgName, repoName, pathStrings[i], accessToken, tokenBucket)
+					.then(content => {
+						const packageRealName = {
+							name: content?.name || "",
+							version: content?.version || "",
+							languageVersion: content?.engines.node || undefined
+						}
+						lastTimeUpdated[repoName].manifests[pathStrings[i]] = packageRealName
+						return packageRealName
+					})
+				)
+			}
 		}
 
 		await Promise.allSettled(realDataPromises)
-		const realData: { name: string, version:string, languageVersion?:string}[] = []
-		for (const d of realDataPromises){
+		const realData: { name: string, version: string, languageVersion?: string }[] = []
+		for (const d of realDataPromises) {
 			realData.push(await d.then(
-				function name(params:any) {
-					return {name: params.name, version: params.version, languageVersion: params.languageVersion}
-				},
-				function name(params:any) {
-					return {name: "", version: ""}
-				}
+				(params: any) => ({ name: params.name, version: params.version, languageVersion: params.languageVersion }),
+				(_: any) => ({ name: "", version: "", languageVersion: undefined })
 			))
 		}
 
 		let i = 0
 		for (const [packageManager, depList] of Object.entries(repo.packageMap)) {
-			if(packageManager == "RUBYGEMS"){
+			if (packageManager == "RUBYGEMS") {
 				for (const subRepo of depList) {
 					//TODO: Get name from the X.gemspec file in the same repo, as X is the name we need
 				}
 			} else {
 				for (const subRepo of depList) {
-					try{
+					try {
 						subRepo.realName = realData[i].name
 						subRepo.version = realData[i].version
 						subRepo.languageVersion = realData[i].languageVersion
-					} catch{
+					} catch {
 						console.log(realData)
 						console.log(i)
 					}
@@ -184,11 +193,10 @@ function getAllRepoDeps(repoList: BranchManifest[], lastTimeUpdated: LastTimeUpd
 			const deps = getRepoDependencies(repo)
 			if (Object.keys(deps.packageMap).length > 0) {
 				all_dependencies.push(deps)
-				lastTimeUpdated[repo.name] = {lastUpdated: repo.pushedAt, deps: deps}
+				lastTimeUpdated[repo.name] = {lastUpdated: repo.pushedAt, deps: deps, manifests: {}}
 			}
 		}
 	}
-	// writeFile(`all_dependencies_cached.json`, JSON.stringify(all_dependencies));
 	return all_dependencies
 }
 
@@ -390,7 +398,8 @@ export async function scrapeOrganisation(config: ReturnType<typeof loadConfig>, 
 
 	let lastTimeUpdated: LastTimeUpdated;
 	try {
-		// TODO: use json()
+		// TODO: use .json() and maybe reuse scrapeOrganisationCache.json instead of creating a new one
+		// Load previous github crawl, so that it can be used to skip some of the crawling
 		lastTimeUpdated = JSON.parse(readFile(`${config.targetOrganisation}.json`)) as LastTimeUpdated
 	} catch (error) {
 		console.log(`Couldn't load cached file ${error}`)
@@ -420,7 +429,7 @@ export async function scrapeOrganisation(config: ReturnType<typeof loadConfig>, 
 		const allRepoDeps = getAllRepoDeps(repoList, lastTimeUpdated);
 		console.log("finished getting repoList")
 
-		await getRealNames(allRepoDeps, config, accessToken, tokenBucket);
+		await getRealNames(allRepoDeps, config, accessToken, tokenBucket, lastTimeUpdated);
 
 		for (const repo of allRepoDeps) {
 			const name = repo.manifest.name

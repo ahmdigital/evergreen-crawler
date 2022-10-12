@@ -1,8 +1,6 @@
 import { TokenBucket } from "./rate-limiting/token-bucket";
 import { getPackageManifest } from "query-registry";
 import { Configuration } from "./utils";
-// import { hooks } from "libnpmhook";
-const hooks = require('libnpmhook')
 
 export const APIParameters = {
 	// Github api allows 5000 reqs per hour. 5000/3600 = 1.388 reqs per second.
@@ -58,7 +56,7 @@ export type Repository = {
 	dependencies: Map<string, string>
 }
 
-//Gets the information for a single npm dependecy from the external service.
+//Gets the information for a single npm dependency from the external service.
 export async function queryDependencyNpm(dependency: string, rateLimiter: PackageRateLimiter, baseUrl: string) {
 	await rateLimiter.npm.tokenBucket.waitForTokens(1)
 
@@ -144,7 +142,7 @@ export function greaterThanPythonPackageVersion(a: PythonPackageVersion, b: Pyth
 	}
 }
 
-//Gets the information for a single pip dependecy from an external service, PyPI.
+//Gets the information for a single pip dependency from an external service, PyPI.
 export async function queryDependencyPyPI(dependency: string, rateLimiter: PackageRateLimiter, baseUrl: string) {
 	await rateLimiter.pypi.tokenBucket.waitForTokens(1)
 
@@ -202,7 +200,7 @@ async function getDependenciesNPMSio(dependencies: string[], rateLimiter: Packag
 		let depMap: Map<string, { version: string, link: string, languageVersion?: string }> = new Map()
 
 		await rateLimiter.npm.tokenBucket.waitForTokens(1)
-		// TDOD: limit calls to 250 packages
+		// TODO: limit calls to 250 packages
 		const requestOptions = {
 		method: 'POST',
 		headers: {
@@ -228,40 +226,6 @@ async function getDependenciesNPMSio(dependencies: string[], rateLimiter: Packag
 
 		return depMap
 	}
-
-// there is a limit of 100 hooks
-export async function addNPMHook(packageName:string, endpoint: string, token: string): Promise<Boolean> {
-	try {
-		await hooks.add(packageName, endpoint, 'supersekrit', {
-			authToken: token
-		  })
-		return true
-	} catch (error) {
-		console.log(error)
-		// throw new Error(`Failed to create npm hook for ${package}: ${error}`);
-		return false
-	}
-}
-
-export async function removeNPMHook(id: string, token: string): Promise<Boolean> {
-	try {
-		await hooks.rm(id, {
-			authToken: token
-		  })
-		return true
-	} catch (error) {
-		console.log(error)
-		return false
-	}
-}
-
-export async function listNPMHooks(token: string) {
-	const response = await hooks.ls({
-		authToken: token
-		})
-	return response
-}
-
 
 //Calls the npm API for all dependencies in the given list
 export async function getDependenciesNpm(dependencies: string[], rateLimiter: PackageRateLimiter, config: Configuration) {
