@@ -57,7 +57,7 @@ async function getRealNames(repoList: ReturnType<typeof getAllRepoDeps>, config:
 		console.log("Trying to query repo: " + repoName)
 
 		for (let i = 0; i < pathStrings.length; i += 1) {
-			if (lastTimeUpdated[repoName].manifests[pathStrings[i]] && Date.parse(lastTimeUpdated[repoName].lastUpdated) >= Date.parse(repo.manifest.pushedAt)) {
+			if (lastTimeUpdated?.[repoName]?.manifests?.[pathStrings[i]] !== undefined && Date.parse(lastTimeUpdated[repoName].lastUpdated) >= Date.parse(repo.manifest.pushedAt)) {
 				realDataPromises.push(
 					new Promise<{ name: string, version: string, languageVersion: string }>((resolve) => resolve(lastTimeUpdated[repoName].manifests[pathStrings[i]]))
 				)
@@ -182,7 +182,7 @@ function getAllRepoDeps(repoList: BranchManifest[], lastTimeUpdated: LastTimeUpd
 	let all_dependencies: ReturnType<typeof getRepoDependencies>[] = []
 	for (const repo of repoList) {
 		if ( lastTimeUpdated[repo.name] && Date.parse(lastTimeUpdated[repo.name].lastUpdated) >= Date.parse(repo.pushedAt)) {
-			if (lastTimeUpdated[repo.name].deps){
+			if (lastTimeUpdated[repo.name]?.deps){
 				all_dependencies.push(lastTimeUpdated[repo.name].deps!)
 			}
 			else{
