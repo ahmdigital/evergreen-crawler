@@ -469,7 +469,10 @@ export async function scrapeOrganisation(config: ReturnType<typeof loadConfig>, 
 	return allDeps
 }
 
-export async function getJsonStructure(accessToken: string, config: Configuration, toUse: string[] | null = null, crawlStart: string | null = null){
+export async function getJsonStructure(accessToken: string, config: Configuration,
+	{ toUse = ["NPM", "PYPI", "RUBYGEMS"], crawlStart = null, useCachedData = true }:
+		{ toUse?: string[] , crawlStart?: string | null, useCachedData?: boolean } = {}) {
+
 	const startTime = Date.now();
 
 	console.log("Configuration:")
@@ -482,15 +485,11 @@ export async function getJsonStructure(accessToken: string, config: Configuratio
 		rubygems: { tokenBucket: new TokenBucket(1000, APIParameters.rubygems.rateLimit, APIParameters.rubygems.intialTokens) },
 	};
 
-	if(toUse == null){
-		toUse = ["NPM", "PYPI", "RUBYGEMS"]
-	}
-
 	crawlStart = crawlStart ?? startTime.toString()
 
 	// ==== START: Extracting dependencies from Github graphql response === //
 
-	const allDeps = await scrapeOrganisation(config, accessToken, false)
+	const allDeps = await scrapeOrganisation(config, accessToken, useCachedData)
 
 	// allDeps: list of dependencies to be given to package APIs
 	const packageDeps = mergeDependenciesLists(allDeps);
@@ -538,7 +537,7 @@ async function main() {
 	try{
 		const accessToken = getAccessToken()
 		const config = loadConfig()
-		writeFile("cachedData.json", await getJsonStructure(accessToken, config));
+		writeFile("cachedData.json", await getJsonStructure(accessToken, config, {useCachedData: false}));
 	} catch(e){
 		const result = {
 			aux: {
