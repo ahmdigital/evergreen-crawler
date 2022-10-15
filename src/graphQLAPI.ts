@@ -213,8 +213,6 @@ export async function queryDependencies(organisation: string, numOfPages: number
 
   // refer to this on how to query different branches/ref,
   // https://stackoverflow.com/questions/51504760/how-to-get-all-repos-that-contain-a-certain-branch-on-githubs-graphql-api
-  // TODO: limit to default branch, current setup no working
-  // TODO: implement V2 version of this query, refer to Postman
 	let query: string =
 		`
 		query orgRepos($organisation: String!, $numOfPages: Int!, $repoCursor: String, $dependencyLimit: Int!) {
