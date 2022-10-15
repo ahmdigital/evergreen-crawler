@@ -102,3 +102,4 @@ Use the flag `--onlyFailures` to only run failed tests in the previous execution
     * use `foo fileSystemPath`
 * There is a [limit](https://github.community/t/dependency-graph-manifest-files-limit/133284/77?page=3) on the number of manifest files that can be fetched (link is dead)
 * [Other dependency graph limits](https://docs.github.com/en/code-security/supply-chain-security/understanding-your-software-supply-chain/troubleshooting-the-dependency-graph)
+* `repository_import` event does not trigger update cache `https://docs.github.com/en/developers/webhooks-and-events/webhooks/webhook-events-and-payloads#repository_import`
