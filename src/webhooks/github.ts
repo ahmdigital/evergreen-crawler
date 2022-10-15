@@ -8,7 +8,7 @@ export async function handleGitHubWebhookPushEvents(accessToken: string, config:
 
     // we only care about the default branch
     if (payload.ref == "refs/heads/" + payload.repository.default_branch) {
-        updateCache(accessToken, config, useCachedData)
+        await updateCache(accessToken, config, useCachedData)
     }
     else {
         console.log(`Push event ref doesn't match the default ${payload.repository.default_branch} /= ${payload.ref}`)
@@ -16,7 +16,7 @@ export async function handleGitHubWebhookPushEvents(accessToken: string, config:
 }
 
 export async function handleGitHubWebhookRepositoryEvents(accessToken: string, config: Configuration, payload: any, useCachedData: boolean = false) {
-    updateCache(accessToken, config, useCachedData)
+    await updateCache(accessToken, config, useCachedData)
 }
 
 async function updateCache(accessToken: string, config: Configuration, useCachedData: boolean = false) {
