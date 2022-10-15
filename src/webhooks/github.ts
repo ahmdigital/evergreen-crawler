@@ -3,7 +3,7 @@
 import { scrapeOrganisation, scrapeOrgCacheFilename } from "../index"
 import { Configuration, writeFile, mapToObject } from "../utils"
 
-// TODO: handle the possibility of race conditions
+// Race condition will occur if they are not called(and awaited) sequentially.
 export async function handleGitHubWebhookPushEvents(accessToken: string, config: Configuration, payload: any, useCachedData: boolean = false) {
 
     // we only care about the default branch

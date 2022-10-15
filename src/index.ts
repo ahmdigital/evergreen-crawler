@@ -374,6 +374,7 @@ async function fetchingData(config: { targetOrganisation: string; }, accessToken
 export async function scrapeOrganisation(config: ReturnType<typeof loadConfig>, accessToken: string, useCachedData: boolean = true) {
 	let allDeps = new Map<string, Repository[]>()
 	if(useCachedData){
+		console.log("Using cached data")
 		try {
 
 			let allDeps = objectToMap(JSON.parse(readFile(scrapeOrgCacheFilename))) as Map<string, any>
@@ -400,9 +401,9 @@ export async function scrapeOrganisation(config: ReturnType<typeof loadConfig>, 
 	try {
 		// TODO: use .json() and maybe reuse scrapeOrganisationCache.json instead of creating a new one
 		// Load previous github crawl, so that it can be used to skip some of the crawling
-		lastTimeUpdated = JSON.parse(readFile(`${config.targetOrganisation}.json`)) as LastTimeUpdated
+		lastTimeUpdated = JSON.parse(readFile(`${config.targetOrganisation}-github-org-cache.json`)) as LastTimeUpdated
 	} catch (error) {
-		console.log(`Couldn't load cached file ${error}`)
+		console.log(`Couldn't load github organisation cached file ${error}`)
 		lastTimeUpdated = {}
 	}
 
@@ -465,7 +466,7 @@ export async function scrapeOrganisation(config: ReturnType<typeof loadConfig>, 
 		}
 	}
 
-	writeFile(`${config.targetOrganisation}.json`, JSON.stringify(lastTimeUpdated));
+	writeFile(`${config.targetOrganisation}-github-org-cache.json`, JSON.stringify(lastTimeUpdated));
 	return allDeps
 }
 
