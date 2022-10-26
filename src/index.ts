@@ -41,7 +41,7 @@ function getRepos(response: GraphResponse) {
 	return filteredRepos
 }
 
-async function getRealNames(repoList: ReturnType<typeof getAllRepoDeps>, config: ReturnType<typeof loadConfig>, accessToken: string, tokenBucket: TokenBucket, lastTimeUpdated: LastTimeUpdated) {
+async function getRealNames(repoList: ReturnType<typeof getAllRepoDeps>, targetOrganisation: string, accessToken: string, tokenBucket: TokenBucket, lastTimeUpdated: LastTimeUpdated) {
 	for (const repo of repoList) {
 		let pathStrings: string[] = []
 		for (const [packageManager, depList] of Object.entries(repo.packageMap)) {
@@ -52,7 +52,7 @@ async function getRealNames(repoList: ReturnType<typeof getAllRepoDeps>, config:
 		}
 
 		let realDataPromises: any[] = []
-		const orgName = config.targetOrganisation
+		const orgName = targetOrganisation
 		const repoName = repo.manifest.name
 		console.log("Trying to query repo: " + repoName)
 
@@ -231,7 +231,7 @@ const MINIMUM_GITHUB_POINTS = 10;
  * This function performs pre-flight requests to retrieve a list of cursors to be used in \\TODO: insert function name here
  * !NOTE: the output will be saved inside the input repoCursors[] list. This allows us to continue from the last cursor in case of a crash.
  */
-async function getOrgReposCursors(config: { targetOrganisation: string; }, repoCursors:(string | null)[], accessToken: string): Promise<(string | null)[]> {
+async function getOrgReposCursors(targetOrganisation: string, repoCursors:(string | null)[], accessToken: string): Promise<(string | null)[]> {
 
 	const numOfPages = 100
 	let hasNextPage = false;
@@ -245,7 +245,7 @@ async function getOrgReposCursors(config: { targetOrganisation: string; }, repoC
 		}
 
 
-		const response = await queryRepositories(config.targetOrganisation, numOfPages, lastCursor, accessToken) as OrgRepos;
+		const response = await queryRepositories(targetOrganisation, numOfPages, lastCursor, accessToken) as OrgRepos;
 
 		for (const repo of response.organization.repositories.edges) {
 			// TODO: yield repo.cursor
@@ -307,12 +307,12 @@ async function retry<T>(f:()=>Promise<T>, maxAttempts:number):Promise<T>{
 /**
  * This function fetches repositories and implements the proper error handling and retry logic.
  */
-async function fetchingData(config: { targetOrganisation: string; }, accessToken:string ): Promise<{responses: GraphResponse[], failedCursors: (string | null)[]}>  {
+async function fetchingData(targetOrganisation: string, accessToken:string ): Promise<{responses: GraphResponse[], failedCursors: (string | null)[]}>  {
 	let repoCursors: (string | null)[] = [];
 	const promises: Promise<void>[] = [];
 	try {
 
-		await retry(() => getOrgReposCursors(config, repoCursors, accessToken), 3);
+		await retry(() => getOrgReposCursors(targetOrganisation, repoCursors, accessToken), 3);
 		// prepend a null so that we can get the first repo, and remove the last cursor
 		// this is because we always get x repos after y cursor, if the cursor is null, then it start getting the first repos
 		let requestRepoCursors: (string | null)[] = (repoCursors.slice(0, -1))
@@ -327,7 +327,7 @@ async function fetchingData(config: { targetOrganisation: string; }, accessToken
 			promises.push(new Promise(async (resolve, reject) => {
 				try {
 					// get numOfPages repositories at a time
-					const res = await retry(() => queryDependencies(config.targetOrganisation, numOfPages, requestRepoCursors[curCursor], accessToken) as Promise<GraphResponse>, 2);
+					const res = await retry(() => queryDependencies(targetOrganisation, numOfPages, requestRepoCursors[curCursor], accessToken) as Promise<GraphResponse>, 2);
 					responses.push(res);
 				} catch (e) {
 					const cursors = requestRepoCursors.slice(curCursor, curCursor + numOfPages);
@@ -337,7 +337,7 @@ async function fetchingData(config: { targetOrganisation: string; }, accessToken
 					else{
 						// if there's a failure, get each repository individually
 						try {
-							const subPromises = cursors.map(c => retry(() => queryDependencies(config.targetOrganisation, 1, c, accessToken) as Promise<GraphResponse>, 3));
+							const subPromises = cursors.map(c => retry(() => queryDependencies(targetOrganisation, 1, c, accessToken) as Promise<GraphResponse>, 3));
 							const res = await Promise.all(subPromises);
 							responses.push(...res);
 						} catch (eSub) {
@@ -371,7 +371,7 @@ async function fetchingData(config: { targetOrganisation: string; }, accessToken
 }
 
 
-export async function scrapeOrganisation(config: ReturnType<typeof loadConfig>, accessToken: string, useCachedData: boolean = true) {
+export async function scrapeOrganisation(targetOrganisation: string, accessToken: string, useCachedData: boolean = true) {
 	let allDeps = new Map<string, Repository[]>()
 	if(useCachedData){
 		console.log("Using cached data")
@@ -390,7 +390,7 @@ export async function scrapeOrganisation(config: ReturnType<typeof loadConfig>, 
 		}
 	}
 
-	const {responses, failedCursors} = await fetchingData(config, accessToken);
+	const {responses, failedCursors} = await fetchingData(targetOrganisation, accessToken);
 
 	console.log("Fetched all repositories cursors");
 	// const responses = await Promise.all(promises);
@@ -401,7 +401,7 @@ export async function scrapeOrganisation(config: ReturnType<typeof loadConfig>, 
 	try {
 		// TODO: use .json() and maybe reuse scrapeOrganisationCache.json instead of creating a new one
 		// Load previous github crawl, so that it can be used to skip some of the crawling
-		lastTimeUpdated = JSON.parse(readFile(`${config.targetOrganisation}-github-org-cache.json`)) as LastTimeUpdated
+		lastTimeUpdated = JSON.parse(readFile(`${targetOrganisation}-github-org-cache.json`)) as LastTimeUpdated
 	} catch (error) {
 		console.log(`Couldn't load github organisation cached file ${error}`)
 		lastTimeUpdated = {}
@@ -430,7 +430,7 @@ export async function scrapeOrganisation(config: ReturnType<typeof loadConfig>, 
 		const allRepoDeps = getAllRepoDeps(repoList, lastTimeUpdated);
 		console.log("finished getting repoList")
 
-		await getRealNames(allRepoDeps, config, accessToken, tokenBucket, lastTimeUpdated);
+		await getRealNames(allRepoDeps, targetOrganisation, accessToken, tokenBucket, lastTimeUpdated);
 
 		for (const repo of allRepoDeps) {
 			const name = repo.manifest.name
@@ -466,19 +466,19 @@ export async function scrapeOrganisation(config: ReturnType<typeof loadConfig>, 
 		}
 	}
 
-	writeFile(`${config.targetOrganisation}-github-org-cache.json`, JSON.stringify(lastTimeUpdated));
+	writeFile(`${targetOrganisation}-github-org-cache.json`, JSON.stringify(lastTimeUpdated));
 	return allDeps
 }
 
-export async function getJsonStructure(accessToken: string, config: Configuration,
-	{ toUse = ["NPM", "PYPI", "RUBYGEMS"], crawlStart = null, useCachedData = true }:
+export async function getJsonStructure(accessToken: string, targetOrganisation: string ,config: Configuration,
+	{ toUse = ["NPM"], crawlStart = null, useCachedData = true }:
 		{ toUse?: string[] , crawlStart?: string | null, useCachedData?: boolean } = {}) {
 
 	const startTime = Date.now();
 
+	console.log(targetOrganisation)
 	console.log("Configuration:")
 	console.log(config)
-	console.log(config.targetOrganisation)
 
 	let rateLimiter: PackageRateLimiter = {
 		npm: { tokenBucket: new TokenBucket(1000, APIParameters.npm.rateLimit, APIParameters.npm.intialTokens) },
@@ -490,7 +490,8 @@ export async function getJsonStructure(accessToken: string, config: Configuratio
 
 	// ==== START: Extracting dependencies from Github graphql response === //
 
-	const allDeps = await scrapeOrganisation(config, accessToken, useCachedData)
+	const allDeps = await scrapeOrganisation(targetOrganisation, accessToken, useCachedData)
+	console.log("Total time scraping " + targetOrganisation + ":" + ((Date.now() - startTime) / 1000).toString())
 
 	// allDeps: list of dependencies to be given to package APIs
 	const packageDeps = mergeDependenciesLists(allDeps);
@@ -517,7 +518,7 @@ export async function getJsonStructure(accessToken: string, config: Configuratio
 
 	jsonResult += "{"
 	jsonResult += "\"aux\":"
-	jsonResult += auxData(config.targetOrganisation, crawlStart, error.msg)
+	jsonResult += auxData(targetOrganisation, crawlStart, error.msg)
 	jsonResult += ","
 	jsonResult += "\"npm\": ["
 	jsonResult += !(toUse.includes("NPM") && allDeps.has("NPM")) ? "" : generateDependencyTree(allDeps.get("NPM") as Repository[], depDataMap.get("NPM") as any)
@@ -538,7 +539,7 @@ async function main() {
 	try{
 		const accessToken = getAccessToken()
 		const config = loadConfig()
-		writeFile("cachedData.json", await getJsonStructure(accessToken, config, {useCachedData: false}));
+		writeFile("cachedData.json", await getJsonStructure(accessToken, process.env.targetOrganisation!, config, {useCachedData: false}));
 	} catch(e){
 		const result = {
 			aux: {
