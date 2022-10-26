@@ -18,7 +18,6 @@ export function getAccessToken(): string {
 }
 
 export type Configuration = {
-	targetOrganisation: string,
 	npmURL?: string,
 	pipURL?: string,
 	rubygemsURL?: string
