@@ -4,7 +4,7 @@ import {
     graphql,
 } from "@octokit/graphql";
 
-import { Octokit, RestEndpointMethodTypes } from "@octokit/rest";
+import { Octokit } from "@octokit/rest";
 import { TokenBucket } from "./rate-limiting/token-bucket";
 
 export type DependencyGraphDependency = {

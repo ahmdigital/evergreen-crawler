@@ -1,6 +1,6 @@
 import { TokenBucket } from "./rate-limiting/token-bucket";
-import { getPackageManifest } from "query-registry";
 import { Configuration } from "./utils";
+import 'isomorphic-fetch';
 
 export const APIParameters = {
 	// Github api allows 5000 reqs per hour. 5000/3600 = 1.388 reqs per second.
@@ -24,7 +24,7 @@ export const APIParameters = {
 	},
 }
 
-	//https://docs.github.com/en/code-security/supply-chain-security/understanding-your-software-supply-chain/about-the-dependency-graph
+//https://docs.github.com/en/code-security/supply-chain-security/understanding-your-software-supply-chain/about-the-dependency-graph
 export const packageManagerFiles = [
 	{ name: "NPM", extensions: ["package.json"] },
 	{ name: "PYPI", extensions: ["requirements.txt"] },
@@ -62,13 +62,14 @@ export async function queryDependencyNpm(dependency: string, rateLimiter: Packag
 
 	let manifest
 	try{
-		manifest = await getPackageManifest({ name: dependency, ...(baseUrl == "" ? {}: {registry: baseUrl})})
+		manifest = await (await fetch(`https://registry.npmjs.org/${dependency}/latest`)).json()
 	}
 	catch(e){
 		manifest = { version: "1.0.0"}
 		console.log(e)
 	}
 	baseUrl = baseUrl == "" ? "https://www.npmjs.com" : baseUrl
+	// Please add node.engines as well before exposing language version to use, these both could be useful
 	return { name: dependency, data: { version: manifest.version, link: baseUrl + "/package/" + dependency, languageVersion: manifest._nodeVersion } }
 }
 
@@ -199,6 +200,7 @@ async function getDependencies(dependencies: string[], rateLimiter: PackageRateL
 async function getDependenciesNPMSio(dependencies: string[], rateLimiter: PackageRateLimiter, baseUrl: string): Promise<Map<string, { version: string; link: string; }>> {
 		let depMap: Map<string, { version: string, link: string, languageVersion?: string }> = new Map()
 
+		// TODO loop and fetch every 250 packages
 		await rateLimiter.npm.tokenBucket.waitForTokens(1)
 		// TODO: limit calls to 250 packages
 		const requestOptions = {
@@ -207,7 +209,7 @@ async function getDependenciesNPMSio(dependencies: string[], rateLimiter: Packag
 			"Accept": "application/json",
 			"Content-Type": "application/json"
 			},
-			body: JSON.stringify(dependencies)
+			body: JSON.stringify(dependencies.slice(0, 250))
 		};
 		// const depList: {name: string, data: {version: string, link: string}}[] = []
 
@@ -216,9 +218,7 @@ async function getDependenciesNPMSio(dependencies: string[], rateLimiter: Packag
 		.then(response => {
 			const tempList: any  = []
 			for (const dependency in response) {
-				// @reteppeter how are you getting _nodeVersion from npm,
-				// for example the node version for @sanity/block-content-to-react is not defined in package-lock
-				const temp = { name: dependency, data: { version: response[dependency].collected.metadata.version, link: baseUrl + "/package/" + dependency, languageVersion: undefined } }
+				const temp = { name: dependency, data: { version: response[dependency].collected.metadata.version, link: baseUrl + "/package/" + dependency, languageVersion: response[dependency].engines.node } }
 				depMap.set(temp.name, temp.data)
 			}
 		})

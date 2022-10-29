@@ -430,6 +430,7 @@ export async function scrapeOrganisation(targetOrganisation: string, accessToken
 		const allRepoDeps = getAllRepoDeps(repoList, lastTimeUpdated);
 		console.log("finished getting repoList")
 
+		//TODO: should only query required type manifests, it should not query Rupygem or PYPI dependencies
 		await getRealNames(allRepoDeps, targetOrganisation, accessToken, tokenBucket, lastTimeUpdated);
 
 		for (const repo of allRepoDeps) {
@@ -497,9 +498,21 @@ export async function getJsonStructure(accessToken: string, targetOrganisation: 
 	const packageDeps = mergeDependenciesLists(allDeps);
 
 	let depDataMap: Map<string, Map<string, {version: string, link: string}>> = new Map()
-	if(toUse.includes("NPM") && packageDeps.has("NPM")){ depDataMap.set("NPM", await getDependenciesNpm(packageDeps.get("NPM") as string[], rateLimiter, config)) }
-	if(toUse.includes("PYPI") && packageDeps.has("PYPI")){ depDataMap.set("PYPI", await getDependenciesPyPI(packageDeps.get("PYPI") as string[], rateLimiter, config)) }
-	if(toUse.includes("RUBYGEMS") && packageDeps.has("RUBYGEMS")){ depDataMap.set("RUBYGEMS", await getDependenciesRubyGems(packageDeps.get("RUBYGEMS") as string[], rateLimiter, config)) }
+	let startTimeRegistry = Date.now();
+	if (toUse.includes("NPM") && packageDeps.has("NPM")) {
+		depDataMap.set("NPM", await getDependenciesNpm(packageDeps.get("NPM") as string[], rateLimiter, config))
+		console.error("Total time NPM " + targetOrganisation + ":" + ((Date.now() - startTimeRegistry) / 1000).toString())
+	}
+	if (toUse.includes("PYPI") && packageDeps.has("PYPI")) {
+		startTimeRegistry = Date.now();
+		depDataMap.set("PYPI", await getDependenciesPyPI(packageDeps.get("PYPI") as string[], rateLimiter, config))
+		console.error("Total time PYPI " + targetOrganisation + ":" + ((Date.now() - startTimeRegistry) / 1000).toString())
+	}
+	if (toUse.includes("RUBYGEMS") && packageDeps.has("RUBYGEMS")) {
+		startTimeRegistry = Date.now();
+		depDataMap.set("RUBYGEMS", await getDependenciesRubyGems(packageDeps.get("RUBYGEMS") as string[], rateLimiter, config))
+		console.error("Total time RUBYGEMS " + targetOrganisation + ":" + ((Date.now() - startTimeRegistry) / 1000).toString())
+	}
 
 	//Wait for all requests to finish
 	console.log("Waiting for all requests to finish");
