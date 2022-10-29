@@ -1,5 +1,6 @@
 import { TokenBucket } from "./rate-limiting/token-bucket";
 import { Configuration } from "./utils";
+import 'isomorphic-fetch';
 
 export const APIParameters = {
 	// Github api allows 5000 reqs per hour. 5000/3600 = 1.388 reqs per second.
@@ -23,7 +24,7 @@ export const APIParameters = {
 	},
 }
 
-	//https://docs.github.com/en/code-security/supply-chain-security/understanding-your-software-supply-chain/about-the-dependency-graph
+//https://docs.github.com/en/code-security/supply-chain-security/understanding-your-software-supply-chain/about-the-dependency-graph
 export const packageManagerFiles = [
 	{ name: "NPM", extensions: ["package.json"] },
 	{ name: "PYPI", extensions: ["requirements.txt"] },
