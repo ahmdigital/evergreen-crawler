@@ -2,10 +2,10 @@
 
 [![Main](https://github.com/ahm-monash/crawler/actions/workflows/main.yml/badge.svg)](https://github.com/ahm-monash/crawler/actions/workflows/main.yml)
 
-This library helps you track how outdated your organisation repositories are.
+This library tracks how outdated your GitHub organisation dependencies are.
 
 The organisation Crawler uses the [GitHub GraphQL API](https://docs.GitHub.com/en/GraphQL) to extract all of a GitHub organisation's repositories and their internal and external dependencies. The current version of dependencies of the crawled repositories are found using [DependencyGraphManifest](https://docs.github.com/en/graphql/reference/objects#dependencygraphmanifest) GraphQL object.
-The latest versions of the dependencies are requested from npm/rubygem/pypi API, it uses client side rate limiter when querying these APIs.
+The latest versions of the dependencies are requested from npm/rubygem/pypi API, it uses client-side rate limiter when querying these APIs.
 
 These information are aggregated and returned as a json object which has a [schema](#output-schema), this object can then be used to present the data.
 
@@ -85,7 +85,7 @@ console.log(res)
 
 ```
 
-If Github webhooks is enabled for the target organisation, these two functions are available:
+If GitHub webhooks is enabled for the target organisation, these two functions are available:
 
 
 ```TypeScript
@@ -131,7 +131,7 @@ The `-n` allows you to skip git hooks.
 `.env` file
 
 ```
-GH_TOKEN= Github token that has full repo scope and admin:org-read:org
+GH_TOKEN= GitHub token that has full repo scope
 targetOrganisation= The target GitHub organisation to track
 ```
 
@@ -181,7 +181,7 @@ Use the flag `--onlyFailures` to only run failed tests in the previous execution
 
 ## Future work
 
-- [ ] Dedicated GraphQL files fro graphql query schemas
+- [ ] Dedicated GraphQL files fro GraphQL query schemas
 - [ ] Improve retry mechanism for asynchronous requests, such that there is more variance in the retry mechanism when multiple requests fail at the same time.
 
 ## Limitations
