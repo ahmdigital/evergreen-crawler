@@ -182,7 +182,7 @@ Use the flag `--onlyFailures` to only run failed tests in the previous execution
 ## Future work
 
 - [ ] Dedicated GraphQL files fro graphql query schemas
-- [ ] Improve retry mechanism for asynchronous requests
+- [ ] Improve retry mechanism for asynchronous requests, such that there is more variance in the retry mechanism when multiple requests fail at the same time.
 
 ## Limitations
 * Each manifest file doesn't contain more that 250 dependencies
