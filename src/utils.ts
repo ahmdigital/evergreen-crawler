@@ -17,6 +17,39 @@ export function getAccessToken(): string {
 	}
 }
 
+
+/**
+ * retry retries an function up to maxAttempts times.
+ * If maxAttempts is exceed, a list containing all thrown errors will be returned
+ */
+export async function retry<T>(f:()=>Promise<T>, maxAttempts:number):Promise<T>{
+
+	if (maxAttempts > 3){
+		console.warn(`Wait time for retrying will be up to: ${Math.pow(10, maxAttempts)} milliseconds`)
+	}
+
+	const errors:Error[] = []
+
+	for (let i = 0; i < maxAttempts; i ++){
+		try {
+			return await f()
+		}catch(e){
+			// i < maxAttempts - 1 && console.warn("Retrying a failed request")
+			// console.warn(e.errors.message)
+			if(e instanceof Error){
+				errors.push(e)
+			} else{
+				console.log("Error of unknown type in retry:")
+				console.log(e)
+				errors.push(new Error())
+			}
+			await sleep(Math.pow(10, i + 1))
+		}
+	}
+
+	throw errors
+}
+
 export type Configuration = {
 	npmURL?: string,
 	pipURL?: string,

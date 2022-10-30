@@ -1,5 +1,5 @@
 import { TokenBucket } from "./rate-limiting/token-bucket";
-import { getAccessToken, loadConfig, writeFile, Configuration, sleep, readFile, objectToMap } from "./utils";
+import { getAccessToken, loadConfig, writeFile, Configuration, retry, readFile, objectToMap } from "./utils";
 import { auxData, generateDependencyTree } from "./outputData";
 import { getDependenciesNpm, getDependenciesPyPI, Repository, APIParameters, PackageRateLimiter, getDependenciesRubyGems, packageManagerFiles } from "./packageAPI";
 import { DependencyGraphDependency, GraphResponse, OrgRepos, RepoEdge, BranchManifest, UpperBranchManifest, queryDependencies, queryRepositories, queryRepoManifest, RepoManifest, queryRepoManifestRest } from "./graphQLAPI"
@@ -273,38 +273,6 @@ async function getOrgReposCursors(targetOrganisation: string, repoCursors:(strin
 }
 
 /**
- * retry retries an function up to maxAttempts times.
- * If maxAttempts is execed, a list containing all thrown errors will be returned
- */
-async function retry<T>(f:()=>Promise<T>, maxAttempts:number):Promise<T>{
-
-	if (maxAttempts > 3){
-		console.warn(`Wait time for retrying will be up to: ${Math.pow(10, maxAttempts)} milliseconds`)
-	}
-
-	const errors:Error[] = []
-
-	for (let i = 0; i < maxAttempts; i ++){
-		try {
-			return await f()
-		}catch(e){
-			// i < maxAttempts - 1 && console.warn("Retrying a failed request")
-			// console.warn(e.errors.message)
-			if(e instanceof Error){
-				errors.push(e)
-			} else{
-				console.log("Error of unknown type in retry:")
-				console.log(e)
-				errors.push(new Error())
-			}
-			await sleep(Math.pow(10, i + 1))
-		}
-	}
-
-	throw errors
-}
-
-/**
  * This function fetches repositories and implements the proper error handling and retry logic.
  */
 async function fetchingData(targetOrganisation: string, accessToken:string ): Promise<{responses: GraphResponse[], failedCursors: (string | null)[]}>  {
@@ -500,15 +468,18 @@ export async function getJsonStructure(accessToken: string, targetOrganisation: 
 	let depDataMap: Map<string, Map<string, {version: string, link: string}>> = new Map()
 	let startTimeRegistry = Date.now();
 	if (toUse.includes("NPM") && packageDeps.has("NPM")) {
+		console.error("Total number of NPM  dependencies " + packageDeps.get("NPM")?.length)
 		depDataMap.set("NPM", await getDependenciesNpm(packageDeps.get("NPM") as string[], rateLimiter, config))
 		console.error("Total time NPM " + targetOrganisation + ":" + ((Date.now() - startTimeRegistry) / 1000).toString())
 	}
 	if (toUse.includes("PYPI") && packageDeps.has("PYPI")) {
+		console.error("Total number of PYPI  dependencies " + packageDeps.get("PYPI")?.length)
 		startTimeRegistry = Date.now();
 		depDataMap.set("PYPI", await getDependenciesPyPI(packageDeps.get("PYPI") as string[], rateLimiter, config))
 		console.error("Total time PYPI " + targetOrganisation + ":" + ((Date.now() - startTimeRegistry) / 1000).toString())
 	}
 	if (toUse.includes("RUBYGEMS") && packageDeps.has("RUBYGEMS")) {
+		console.error("Total number of RUBYGEMS  dependencies " + packageDeps.get("RUBYGEMS")?.length)
 		startTimeRegistry = Date.now();
 		depDataMap.set("RUBYGEMS", await getDependenciesRubyGems(packageDeps.get("RUBYGEMS") as string[], rateLimiter, config))
 		console.error("Total time RUBYGEMS " + targetOrganisation + ":" + ((Date.now() - startTimeRegistry) / 1000).toString())

@@ -1,12 +1,12 @@
 import { TokenBucket } from "./rate-limiting/token-bucket";
-import { Configuration } from "./utils";
+import { Configuration, retry } from "./utils";
 import 'isomorphic-fetch';
 
 export const APIParameters = {
 	// Github api allows 5000 reqs per hour. 5000/3600 = 1.388 reqs per second.
 	npm: {
 		// Some sources suggest npm allows up to 5 million requests per month.
-		rateLimit: 5000000 / (3600 * 24 * 30),
+		rateLimit: 5000000 / (3600 * 24 * 35),
 		intialTokens: 250,
 	},
 	pypi: {
@@ -61,11 +61,11 @@ export async function queryDependencyNpm(dependency: string, rateLimiter: Packag
 	await rateLimiter.npm.tokenBucket.waitForTokens(1)
 
 	let manifest
-	try{
+	try {
 		manifest = await (await fetch(`https://registry.npmjs.org/${dependency}/latest`)).json()
 	}
-	catch(e){
-		manifest = { version: "1.0.0"}
+	catch (e) {
+		manifest = { version: "0.0.0" }
 		console.log(e)
 	}
 	baseUrl = baseUrl == "" ? "https://www.npmjs.com" : baseUrl
@@ -151,16 +151,16 @@ export async function queryDependencyPyPI(dependency: string, rateLimiter: Packa
 
 	//https://warehouse.pypa.io/api-reference/, they suggest that our user agent should mention who we are
 	const response = await (await fetch(baseUrl + "/pypi/" + dependency + "/json")).json()
-	const data = response as { info: { version : any}, releases : any }
+	const data = response as { info: { version: any }, releases: any }
 
 	let bestVersion: string = "0"
-	let bestVersionObject: PythonPackageVersion = {epoch: 0, first: 0, rest: [], isPrerelease: true}
+	let bestVersionObject: PythonPackageVersion = { epoch: 0, first: 0, rest: [], isPrerelease: true }
 
 	//We have to look through all releases to find the most recent, non-pre-release version
 	for (const release in data.releases) {
 		const version = parsePythonPackageVersion(release)
 
-		if(greaterThanPythonPackageVersion(version, bestVersionObject)){
+		if (greaterThanPythonPackageVersion(version, bestVersionObject)) {
 			bestVersionObject = version
 			bestVersion = release
 		}
@@ -184,39 +184,38 @@ export async function queryDependencyRubyGems(dependency: string, rateLimiter: P
 
 //Calls the given API for all dependencies in the given list
 async function getDependencies(dependencies: string[], rateLimiter: PackageRateLimiter, queryFunc: any, baseUrl: string) {
-		let depMap: Map<string, { version: string, link: string, languageVersion?: string }> = new Map()
+	let depMap: Map<string, { version: string, link: string, languageVersion?: string }> = new Map()
+	const depList: any = await Promise.all(
+		dependencies.map(async (dependency) => await retry(() => queryFunc(dependency, rateLimiter, baseUrl), 3)
+		)
+	);
 
-		const depList = await Promise.all(
-			dependencies.map((dependency) => queryFunc(dependency, rateLimiter, baseUrl))
-		);
-
-		for (const dependency of depList) {
-			depMap.set(dependency.name, dependency.data)
-		}
-
-		return depMap
+	for (const dependency of depList) {
+		depMap.set(dependency.name, dependency.data)
 	}
 
-async function getDependenciesNPMSio(dependencies: string[], rateLimiter: PackageRateLimiter, baseUrl: string): Promise<Map<string, { version: string; link: string; }>> {
-		let depMap: Map<string, { version: string, link: string, languageVersion?: string }> = new Map()
+	return depMap
+}
 
-		// TODO loop and fetch every 250 packages
-		await rateLimiter.npm.tokenBucket.waitForTokens(1)
-		// TODO: limit calls to 250 packages
-		const requestOptions = {
+async function getDependenciesNPMSio(dependencies: string[], rateLimiter: PackageRateLimiter, baseUrl: string): Promise<Map<string, { version: string; link: string; }>> {
+	let depMap: Map<string, { version: string, link: string, languageVersion?: string }> = new Map()
+
+	// TODO loop and fetch every 250 packages
+	await rateLimiter.npm.tokenBucket.waitForTokens(1)
+	const requestOptions = {
 		method: 'POST',
 		headers: {
 			"Accept": "application/json",
 			"Content-Type": "application/json"
-			},
-			body: JSON.stringify(dependencies.slice(0, 250))
-		};
-		// const depList: {name: string, data: {version: string, link: string}}[] = []
+		},
+		body: JSON.stringify(dependencies.slice(0, 250))
+	};
+	// const depList: {name: string, data: {version: string, link: string}}[] = []
 
-		await fetch("https://api.npms.io/v2/package/mget", requestOptions)
+	await fetch("https://api.npms.io/v2/package/mget", requestOptions)
 		.then(response => response.json())
 		.then(response => {
-			const tempList: any  = []
+			const tempList: any = []
 			for (const dependency in response) {
 				const temp = { name: dependency, data: { version: response[dependency].collected.metadata.version, link: baseUrl + "/package/" + dependency, languageVersion: response[dependency].engines.node } }
 				depMap.set(temp.name, temp.data)
@@ -224,8 +223,8 @@ async function getDependenciesNPMSio(dependencies: string[], rateLimiter: Packag
 		})
 		.catch(error => console.log('Error fetching dependencies from npms.io:', error));
 
-		return depMap
-	}
+	return depMap
+}
 
 //Calls the npm API for all dependencies in the given list
 export async function getDependenciesNpm(dependencies: string[], rateLimiter: PackageRateLimiter, config: Configuration) {
